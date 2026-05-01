@@ -473,7 +473,13 @@ function loadCloud(cb){
         if(r.db.nPr!==undefined)   db.nPr   = r.db.nPr;
         if(r.db.nFt!==undefined)   db.nFt   = r.db.nFt;
       }
-      if(r.cfg&&r.cfg.nome) Object.assign(cfg,r.cfg);
+      if(r.cfg&&r.cfg.nome){
+        var savedIva = r.cfg.iva;
+        Object.assign(cfg,r.cfg);
+        // If cloud has old default IVA (10%), keep the file default (22%)
+        // User can always change it in settings and save
+        if(!savedIva || savedIva==='10') cfg.iva = cfg.iva||'22';
+      }
       if(data.record.kmCache) Object.assign(kmCache, data.record.kmCache);
       syncStatus('\u2713 Dati aggiornati','var(--green)');
     }
@@ -1278,7 +1284,7 @@ function saveSyncCfg(){
   }
 }
 
-function saveCfg(){cfg={nome:document.getElementById('cn').value,piva:document.getElementById('cp').value,addr:document.getElementById('ca').value,tel:document.getElementById('ct').value,email:document.getElementById('ce').value,iva:document.getElementById('ci').value,rimbKm:cfg.rimbKm,nFatt:parseInt(document.getElementById('cnf').value)||1};saveCloud();alert('Salvato.');}
+function saveCfg(){cfg={nome:document.getElementById('cn').value,piva:document.getElementById('cp').value,addr:document.getElementById('ca').value,tel:document.getElementById('ct').value,email:document.getElementById('ce').value,iva:document.getElementById('ci').value,rimbKm:cfg.rimbKm,nFatt:parseInt(document.getElementById('cnf').value)||1};saveCloud();}
 
 // ── INTERVENTO ───────────────────────────────────────────────────────────
 function buildSGPicker(allId){
@@ -1336,7 +1342,7 @@ function prepFatt(allId){
   var a=db.all.find(function(x){return x.id==allId;}),ints=db.int.filter(function(i){return i.allId==allId&&!i.fatt;});
   if(!ints.length)return;
   var rm={};
-  ints.forEach(function(i){i.servs.forEach(function(s){var p=db.prest.find(function(x){return x.id===s.id;});if(!p)return;if(!rm[p.id])rm[p.id]={nome:p.nome,qta:0,price:p.price};rm[p.id].qta+=s.qty;});});
+  ints.forEach(function(i){i.servs.forEach(function(s){var p=db.prest.find(function(x){return x.id===s.id;});if(!p)return;if(!rm[p.id])rm[p.id]={nome:p.nome,qta:0,price:getPrestPrice(p.id,allId)};rm[p.id].qta+=s.qty;});});
   var righe=Object.values(rm);
   var num=cfg.nFatt;
   var periodi=[...new Set(ints.map(function(i){return i.data;}))].sort().map(fmtD).join(', ');
@@ -1347,7 +1353,7 @@ function prepFatt(allId){
 }
 
 function buildFattPreview(a,righe,periodi,num){
-  var IVA_RATE=10;
+  var IVA_RATE=parseInt(cfg.iva)||22;
   var rowsHtml=righe.map(function(r,i){
     var imp=(r.qta*r.price);
     var iva=imp*IVA_RATE/100;
@@ -1386,7 +1392,7 @@ function buildFattPreview(a,righe,periodi,num){
         '<th style="text-align:center">Qta</th>'+
         '<th style="text-align:right">Prezzo unit.</th>'+
         '<th style="text-align:right">Imponibile</th>'+
-        '<th style="text-align:right">IVA 10%</th>'+
+        '<th style="text-align:right">IVA '+(parseInt(cfg.iva)||22)+'%</th>'+
         '<th style="text-align:right">Totale</th>'+
       '</tr></thead>'+
       '<tbody id="fatt-preview-body">'+rowsHtml+'</tbody>'+
@@ -1394,7 +1400,7 @@ function buildFattPreview(a,righe,periodi,num){
     '<hr class="div">'+
     '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;font-size:18px">'+
       '<div style="color:var(--rvl)">Imponibile: <strong id="fatt-imp">€'+imp.toFixed(2)+'</strong></div>'+
-      '<div style="color:var(--rvl)">IVA 10%: <strong id="fatt-iva">€'+ivaA.toFixed(2)+'</strong></div>'+
+      '<div style="color:var(--rvl)">IVA '+(parseInt(cfg.iva)||22)+'%: <strong id="fatt-iva">€'+ivaA.toFixed(2)+'</strong></div>'+
     '</div>'+
     '<div class="fatt-tot"><span style="font-size:14px;font-weight:700">Totale fattura</span><span class="fatt-tot-v" id="fatt-totale">€'+totale.toFixed(2)+'</span></div>'+
   '</div>';
@@ -1404,7 +1410,7 @@ function buildFattPreview(a,righe,periodi,num){
 }
 
 function updFattRow(i, newPrice){
-  var IVA_RATE=10;
+  var IVA_RATE=parseInt(cfg.iva)||22;
   window._pendingFatt.righe[i].price=parseFloat(newPrice)||0;
   var righe=window._pendingFatt.righe;
   // update row cells
@@ -1428,7 +1434,7 @@ function updFattRow(i, newPrice){
 
 function confFattPending(){
   var p=window._pendingFatt; if(!p)return;
-  var IVA_RATE=10;
+  var IVA_RATE=parseInt(cfg.iva)||22;
   var imp=p.righe.reduce(function(s,r){return s+(r.qta*r.price);},0);
   var ivaA=imp*IVA_RATE/100, tot=imp+ivaA;
   confFatt(p.allId,p.righe,imp,ivaA,tot,p.num);
@@ -1451,7 +1457,7 @@ function confFatt(allId,righe,imp,ivaA,tot,num){
 function downloadFattXlsx(f){
   if(typeof XLSX==='undefined'){alert('Libreria Excel non caricata. Serve connessione internet.');return;}
   var a=db.all.find(function(x){return x.id===f.allId;})||{};
-  var IVA_RATE=10;
+  var IVA_RATE=parseInt(cfg.iva)||22;
   var ws={};
   var GM='EB Garamond';
 
@@ -1513,7 +1519,7 @@ function downloadFattXlsx(f){
   sc(1,R,'Quantità',{sz:10,bold:true,color:'ffffff',fill:'1a3a1a',align:'center',border:thBorder});
   sc(2,R,'Prezzo unit. (€)',{sz:10,bold:true,color:'ffffff',fill:'1a3a1a',align:'right',border:thBorder});
   sc(3,R,'Imponibile (€)',{sz:10,bold:true,color:'ffffff',fill:'1a3a1a',align:'right',border:thBorder});
-  sc(4,R,'IVA 10% (€)',{sz:10,bold:true,color:'ffffff',fill:'1a3a1a',align:'right',border:thBorder});
+  sc(4,R,'IVA '+(parseInt(cfg.iva)||22)+'% (€)',{sz:10,bold:true,color:'ffffff',fill:'1a3a1a',align:'right',border:thBorder});
   sc(5,R,'Totale (€)',{sz:10,bold:true,color:'ffffff',fill:'1a3a1a',align:'right',border:thBorder});
   R++;
 
@@ -1545,7 +1551,7 @@ function downloadFattXlsx(f){
   sc(5,R,0,{f:'SUM(D'+firstDataRow+':D'+(lastDataRow)+')',sz:13,bold:true,align:'right',border:totBorder,fill:'eef4ee',numFmt:'#,##0.00'});
   R++;
   sc(0,R,'',{});sc(1,R,'',{});sc(2,R,'',{});
-  sc(3,R,'IVA 10%',{sz:12,align:'right',color:'5a7a5a',fill:'f8f5f0'});
+  sc(3,R,'IVA '+(parseInt(cfg.iva)||22)+'%',{sz:12,align:'right',color:'5a7a5a',fill:'f8f5f0'});
   sc(4,R,'',{fill:'f8f5f0'});
   sc(5,R,0,{f:'SUM(E'+firstDataRow+':E'+(lastDataRow)+')',sz:12,align:'right',color:'5a7a5a',fill:'f8f5f0',numFmt:'#,##0.00'});
   R++;
@@ -1556,7 +1562,7 @@ function downloadFattXlsx(f){
   R++;R++;
 
   // ── FOOTER ────────────────────────────────────────────────────────────
-  sc(0,R,'Operazione soggetta ad IVA al 10% — DPR 633/72 Tabella A Parte III (prestazioni veterinarie)',{sz:9,italic:true,color:'5a7a5a'});
+  sc(0,R,'Operazione soggetta ad IVA al '+(parseInt(cfg.iva)||22)+'% — DPR 633/72 Tabella A Parte III (prestazioni veterinarie)',{sz:9,italic:true,color:'5a7a5a'});
   R++;
   sc(0,R,'Pagamento: bonifico bancario — dati su richiesta',{sz:9,italic:true,color:'5a7a5a'});
 
@@ -1580,7 +1586,7 @@ function downloadFattXlsx(f){
 function viewFatt(id){
   var f=db.fatts.find(function(x){return x.id===id;}); if(!f)return;
   var a=db.all.find(function(x){return x.id===f.allId;})||{};
-  var IVA_RATE=10;
+  var IVA_RATE=parseInt(cfg.iva)||22;
   var rowsHtml=f.righe.map(function(r){
     var imp=r.qta*r.price, iva=imp*IVA_RATE/100, tot=imp+iva;
     return '<tr><td>'+r.nome+'</td><td style="text-align:center">'+r.qta+'</td><td style="text-align:right">\u20ac'+r.price.toFixed(2)+'</td><td style="text-align:right">\u20ac'+imp.toFixed(2)+'</td><td style="text-align:right;color:var(--rvl)">\u20ac'+iva.toFixed(2)+'</td><td style="text-align:right;font-weight:600">\u20ac'+tot.toFixed(2)+'</td></tr>';
@@ -1597,12 +1603,12 @@ function viewFatt(id){
     '<div style="overflow-x:auto">'+
     '<table class="fatt-tbl"><thead><tr>'+
       '<th>Prestazione</th><th style="text-align:center">Qta</th><th style="text-align:right">Prezzo unit.</th>'+
-      '<th style="text-align:right">Imponibile</th><th style="text-align:right">IVA 10%</th><th style="text-align:right">Totale</th>'+
+      '<th style="text-align:right">Imponibile</th><th style="text-align:right">IVA '+(parseInt(f_iva)||22)+'%</th><th style="text-align:right">Totale</th>'+
     '</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'+
     '<hr class="div">'+
     '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;font-size:18px">'+
       '<div style="color:var(--rvl)">Imponibile: <strong>\u20ac'+f.imp.toFixed(2)+'</strong></div>'+
-      '<div style="color:var(--rvl)">IVA 10%: <strong>\u20ac'+f.ivaA.toFixed(2)+'</strong></div>'+
+      '<div style="color:var(--rvl)">IVA '+(parseInt(cfg.iva)||22)+'%: <strong>\u20ac'+f.ivaA.toFixed(2)+'</strong></div>'+
     '</div>'+
     '<div class="fatt-tot"><span style="font-size:14px;font-weight:700">Totale fattura</span><span class="fatt-tot-v">\u20ac'+f.tot.toFixed(2)+'</span></div>'+
     '</div>'+
