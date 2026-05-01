@@ -474,11 +474,10 @@ function loadCloud(cb){
         if(r.db.nFt!==undefined)   db.nFt   = r.db.nFt;
       }
       if(r.cfg&&r.cfg.nome){
-        var savedIva = r.cfg.iva;
+        var localIva = cfg.iva; // preserve iva from file default
         Object.assign(cfg,r.cfg);
-        // If cloud has old default IVA (10%), keep the file default (22%)
-        // User can always change it in settings and save
-        if(!savedIva || savedIva==='10') cfg.iva = cfg.iva||'22';
+        cfg.iva = r.cfg.iva || localIva; // use cloud iva only if explicitly set
+        if(!cfg.iva || cfg.iva==='10') cfg.iva='22'; // never allow old default 10%
       }
       if(data.record.kmCache) Object.assign(kmCache, data.record.kmCache);
       syncStatus('\u2713 Dati aggiornati','var(--green)');
@@ -1352,8 +1351,18 @@ function prepFatt(allId){
   openModal('mf');
 }
 
+
+function getIVA(){
+  // Single source of truth for IVA rate
+  // Read from settings select if open, otherwise from cfg
+  var ciEl=document.getElementById('ci');
+  if(ciEl&&ciEl.value&&ciEl.value!=='') cfg.iva=ciEl.value;
+  return parseInt(cfg.iva)||22;
+}
+
 function buildFattPreview(a,righe,periodi,num){
-  var IVA_RATE=parseInt(cfg.iva)||22;
+  // Always read IVA from settings select if available (most current value)
+  var IVA_RATE=getIVA();
   var rowsHtml=righe.map(function(r,i){
     var imp=(r.qta*r.price);
     var iva=imp*IVA_RATE/100;
@@ -1410,7 +1419,7 @@ function buildFattPreview(a,righe,periodi,num){
 }
 
 function updFattRow(i, newPrice){
-  var IVA_RATE=parseInt(cfg.iva)||22;
+  var IVA_RATE=getIVA();
   window._pendingFatt.righe[i].price=parseFloat(newPrice)||0;
   var righe=window._pendingFatt.righe;
   // update row cells
@@ -1434,7 +1443,9 @@ function updFattRow(i, newPrice){
 
 function confFattPending(){
   var p=window._pendingFatt; if(!p)return;
-  var IVA_RATE=parseInt(cfg.iva)||22;
+  var IVA_RATE=getIVA();
+  // Save current IVA to cfg before calculating
+  if(ciEl&&ciEl.value) cfg.iva=ciEl.value;
   var imp=p.righe.reduce(function(s,r){return s+(r.qta*r.price);},0);
   var ivaA=imp*IVA_RATE/100, tot=imp+ivaA;
   confFatt(p.allId,p.righe,imp,ivaA,tot,p.num);
