@@ -140,224 +140,7 @@ function fattRows(arr,aid){let map={};arr.forEach(i=>i.servs.forEach(s=>{let p=d
 .todayDate{margin-top:12px;font-size:17px;color:var(--mut);font-weight:700;text-transform:capitalize}
 .calCard{background:rgba(255,250,242,.96);border:1px solid var(--line);border-radius:24px;padding:14px;box-shadow:0 12px 34px rgba(18,48,26,.07);margin-bottom:14px;max-width:430px}
 .calHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.calHead button{border:0;background:#e9f4e8;color:var(--g);border-radius:12px;width:38px;height:38px;font-weight:900;font-size:20px}.calTitle{font-size:21px;font-weight:900;text-transform:capitalize}.calWeek,.calGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.calWeek div{text-align:center;color:var(--mut);font-size:15px;font-weight:900}.calDay{height:42px;border:0;border-radius:14px;background:transparent;color:#c8bda9;font-weight:900;font-size:17px}.calDay.work{background:#edf7ea;color:var(--g);box-shadow:inset 0 0 0 1px rgba(31,90,48,.08)}.calDay.on{background:linear-gradient(135deg,var(--g),var(--g2));color:white;box-shadow:0 10px 22px rgba(18,48,26,.22)}.dashHero{background:linear-gradient(135deg,#12301a,#1f5a30 65%,#39a05b);color:white;border-radius:28px;padding:18px;margin-bottom:14px;box-shadow:0 18px 48px rgba(18,48,26,.18)}.dashHero .mut{color:rgba(255,255,255,.72)}.payBadge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-weight:900;font-size:13px}.payBadge.ok{background:#dcfce7;color:#166534}.payBadge.no{background:#fff0cd;color:#a16207}.dangerLink{border:0;background:#fee2e2;color:var(--red);border-radius:13px;padding:10px 12px;font-weight:900}.settingsMini{font-size:13px;color:var(--mut);margin-top:6px}
-</style></head><body><button class="print" onclick="window.print()">Stampa / Salva PDF</button><div class="page"><div class="head"><div><div class="brand">Rural Vet</div><div class="mut">Fattura n. ${f.num}</div></div><div style="text-align:right"><b>Data</b><br>${fmt(f.data)}</div></div><div class="box"><b>Cliente</b><br>${f.azNome}</div><table><thead><tr><th>Prestazione</th><th>Q.tà</th><th>Prezzo unit.</th><th>Imponibile</th><th>IVA ${rate}%</th><th>Totale</th></tr></thead><tbody>${rows}</tbody></table><div class="tot"><div><span>Imponibile</span><b>${eur(f.imponibile)}</b></div><div><span>IVA ${rate}%</span><b>${eur(f.iva)}</b></div><div class="grand"><span>Totale fattura</span><b>${eur(f.tot)}</b></div></div><p class="mut">Documento generato da Rural Vet. Apri il file e premi “Stampa / Salva PDF” per consegnarlo al cliente.</p></div>
-<style id="rvKmExportAndSoftCards20260522">
-/* Ammorbidimento globale: elimina gli stacchi netti dei riquadri e mantiene ombre piu naturali */
-.card,.stat,.calCard,.backupCard,.vatBox,.rvCompanyCard,.rvKmUserCard,.rvAiWindow,.rvAiSettingsCard,.svc,.prof,.pwdBox,.rvTableWrap,.sheet,.modal .sheet{
-  background:linear-gradient(145deg,rgba(255,255,255,.94) 0%,rgba(255,250,242,.88) 58%,rgba(237,247,234,.80) 100%)!important;
-  border-color:rgba(228,215,195,.66)!important;
-  box-shadow:0 16px 46px rgba(18,48,26,.105),inset 0 1px 0 rgba(255,255,255,.80)!important;
-  background-clip:padding-box!important;
-}
-.card:before,.card:after,.stat:before,.stat:after,.rvHero:after,.rvKmHero:after,.dashHero:after,.top:after{
-  display:none!important;
-}
-.top,.rvHero,.dashHero,.rvKmHero{
-  background:linear-gradient(135deg,rgba(18,48,26,.98),rgba(31,90,48,.96) 62%,rgba(57,160,91,.92))!important;
-  box-shadow:0 18px 54px rgba(18,48,26,.18),inset 0 1px 0 rgba(255,255,255,.18)!important;
-}
-.top{background:linear-gradient(135deg,rgba(255,250,242,.94),rgba(237,247,234,.88))!important;overflow:visible!important}
-.rvKmExportBar{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin:0 0 12px}.rvKmExportBar .label{margin-bottom:4px}.rvKmExportBtn{white-space:nowrap;min-height:50px}.rvKmDetailControls{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-bottom:10px}.rvKmDetailControls .input{min-height:50px}@media(max-width:760px){.rvKmExportBar,.rvKmDetailControls{grid-template-columns:1fr}.rvKmExportBtn{width:100%}}
-.rvKmUserHead{background:linear-gradient(135deg,rgba(255,250,242,.92),rgba(237,247,234,.86))!important}.rvKmStep{background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(255,250,242,.82))!important;box-shadow:0 10px 28px rgba(18,48,26,.06)!important}.rvKmStart{background:linear-gradient(145deg,rgba(247,239,226,.88),rgba(237,247,234,.84))!important}.rvKmDist{box-shadow:inset 0 1px 0 rgba(255,255,255,.65)}
-</style>
-<script id="rvKmExportAndHomePatch20260522">
-(() => {
-  const MEDARDO_HOME_ADDRESS = 'Via Napoli 3, San Giorgio Piacentino';
-  const MEDARDO_HOME_LABEL = 'Casa';
-  function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-  function xmlEsc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[m]));}
-  function safeFmt(d){try{return fmt(d)}catch(e){return d||''}}
-  function rvKmHomeAddress(uid){
-    const p = db && db.cfg && db.cfg.personal && db.cfg.personal[uid] ? db.cfg.personal[uid] : {};
-    const saved = String(p.home || '').trim();
-    if(String(uid)==='medardo') return saved || MEDARDO_HOME_ADDRESS;
-    return saved || 'Casa';
-  }
-  function rvKmDisplayHome(uid){
-    if(String(uid)==='medardo') return MEDARDO_HOME_LABEL;
-    const p = db && db.cfg && db.cfg.personal && db.cfg.personal[uid] ? db.cfg.personal[uid] : {};
-    return p.home ? 'Casa' : 'Casa';
-  }
-  window.rvKmHomeAddress = rvKmHomeAddress;
-  window.rvKmDisplayHome = rvKmDisplayHome;
-
-  window.routeForAsync = async function routeForAsync(day,uid){
-    let ints=(db.int||[]).filter(i=>i.data===day&&i.userId===uid).sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))});
-    let stops=[],total=0,homeAddr=rvKmHomeAddress(uid),homeLabel=rvKmDisplayHome(uid);
-    for(let sess of ['m','p','n']){
-      let si=ints.filter(i=>(i.sess||'m')===sess);
-      if(!si.length) continue;
-      let prevAddr=homeAddr,prevKm=0,prevName=homeLabel;
-      stops.push({from:'',to:homeLabel,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true,sess,note:'Partenza sessione'});
-      for(let idx=0;idx<si.length;idx++){
-        let i=si[idx],a=(db.aziende||[]).find(x=>x.id==i.allId)||{nome:'Azienda',addr:'',km:0};
-        let fallback=idx===0?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
-        let km=await fetchKm(prevAddr,a.addr||a.nome,fallback); total+=km;
-        stops.push({from:idx?prevName:homeLabel,to:a.nome,km:km,ora:i.ora||'',sess,interventoId:i.id,servs:i.servs||[],aziendaId:a.id,note:''});
-        prevAddr=a.addr||a.nome; prevName=a.nome; prevKm=Number(a.km||0);
-      }
-      let km=await fetchKm(prevAddr,homeAddr,prevKm); total+=km;
-      stops.push({from:'Ultima azienda',to:homeLabel,km:km,ora:'Rientro '+sessionLabel(sess),sess,note:'Rientro'});
-    }
-    return {stops,total};
-  };
-  window.routeFor = function routeFor(day,uid){
-    let ints=(db.int||[]).filter(i=>i.data===day&&i.userId===uid).sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))});
-    let stops=[],total=0,homeAddr=rvKmHomeAddress(uid),homeLabel=rvKmDisplayHome(uid);
-    ['m','p','n'].forEach(sess=>{
-      let si=ints.filter(i=>(i.sess||'m')===sess);
-      if(!si.length) return;
-      let prevAddr=homeAddr,prevKm=0,prevName=homeLabel;
-      stops.push({from:'',to:homeLabel,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true,sess,note:'Partenza sessione'});
-      si.forEach((i,idx)=>{
-        let a=(db.aziende||[]).find(x=>x.id==i.allId)||{nome:'Azienda',addr:'',km:0};
-        let fallback=idx===0?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
-        let seg=cachedKm(prevAddr,a.addr||a.nome,fallback); total+=seg;
-        stops.push({from:idx?prevName:homeLabel,to:a.nome,km:seg,ora:i.ora||'',sess,interventoId:i.id,servs:i.servs||[],aziendaId:a.id,note:''});
-        prevAddr=a.addr||a.nome; prevName=a.nome; prevKm=Number(a.km||0);
-      });
-      let seg=cachedKm(prevAddr,homeAddr,prevKm); total+=seg;
-      stops.push({from:'Ultima azienda',to:homeLabel,km:seg,ora:'Rientro '+sessionLabel(sess),sess,note:'Rientro'});
-    });
-    return {stops,total};
-  };
-  window.dayKmFor = function dayKmFor(day,uid){return routeFor(day,uid).total};
-
-  function cleanRouteText(s){
-    if(s.sessionStart) return esc(s.to || 'Casa');
-    let from = String(s.from || '').trim();
-    let to = String(s.to || '').trim();
-    if(from === 'Ultima azienda') return 'Ultima azienda &rarr; ' + esc(to || 'Casa');
-    if(!from) return esc(to || 'Spostamento');
-    return esc(from) + ' &rarr; ' + esc(to || 'Arrivo');
-  }
-  function stopSub(s){
-    const pieces=[];
-    if(s.ora) pieces.push(esc(s.ora));
-    if(s.note && !s.sessionStart) pieces.push(esc(s.note));
-    return pieces.join(' · ');
-  }
-  function sessionNameFromStop(s){
-    if(s.sess && typeof sessionLabel === 'function') return sessionLabel(s.sess);
-    const txt=String(s.ora||'');
-    if(/mattina/i.test(txt)) return 'Mattina';
-    if(/pomeriggio/i.test(txt)) return 'Pomeriggio';
-    if(/notte|urgenza/i.test(txt)) return 'Notte / urgenza';
-    return 'Sessione';
-  }
-  function renderKmRoute(stops){
-    if(!stops || !stops.length) return '<div class="empty">Nessuno spostamento</div>';
-    let html='', step=0;
-    stops.forEach(s=>{
-      if(s.sessionStart){
-        html += '<div class="rvKmSession">' + esc(sessionNameFromStop(s)) + '</div>';
-        html += '<div class="rvKmStep rvKmStart"><div class="rvKmStepNum">0</div><div><div class="rvKmRouteMain">Partenza da ' + esc(s.to || 'Casa') + '</div><div class="rvKmRouteSub">' + esc(s.ora || '') + '</div></div><div class="rvKmDist">Start</div></div>';
-        return;
-      }
-      step += 1;
-      html += '<div class="rvKmStep"><div class="rvKmStepNum">' + step + '</div><div><div class="rvKmRouteMain">' + cleanRouteText(s) + '</div><div class="rvKmRouteSub">' + stopSub(s) + '</div></div><div class="rvKmDist">' + (Number(s.km||0).toFixed(1)) + ' km</div></div>';
-    });
-    return html;
-  }
-  function visibleKmUsers(){return current.role === 'company' ? (typeof rvWorkersKm === 'function' ? rvWorkersKm() : workers()) : [current];}
-  function visibleKmDays(){let visibleInts = current.role === 'company' ? (db.int||[]) : scopeInts();return [...new Set((visibleInts||[]).map(i=>i.data))].sort().reverse();}
-  window.rKm = function rKm(){
-    if(current.role !== 'company' && typeof rvHasKm === 'function' && !rvHasKm(current.id)) return go('oggi');
-    let days = visibleKmDays();
-    let sel = window.kmDay || days[0] || iso(); window.kmDay = sel;
-    window.kmStart = window.kmStart || sel; window.kmEnd = window.kmEnd || sel;
-    let users = visibleKmUsers();
-    $('p-km').innerHTML = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControlsHTML(sel, window.kmStart, window.kmEnd)+'<div class="card"><div class="name">Calcolo percorsi...</div><div class="small">Sto preparando le tappe della giornata e i km per ogni spostamento.</div></div>';
-    Promise.all(users.map(u=>routeForAsync(sel,u.id).then(r=>({u,r})))).then(results=>{
-      let total=0, rimb=0, segments=0;
-      results.forEach(({u,r})=>{ total += Number(r.total||0); rimb += Number(r.total||0)*kmRate(u.id); segments += (r.stops||[]).filter(s=>!s.sessionStart).length; });
-      let top = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControlsHTML(sel, window.kmStart, window.kmEnd)+
-        '<div class="rvKmHero"><div class="small">Dettaglio spostamenti del '+esc(safeFmt(sel))+'</div><div class="rvKmHeroTitle">'+total.toFixed(1)+' km</div><div class="rvKmHeroGrid"><div class="rvKmMini"><b>'+eur(rimb)+'</b><span>Rimborso totale</span></div><div class="rvKmMini"><b>'+segments+'</b><span>Spostamenti</span></div><div class="rvKmMini"><b>'+users.length+'</b><span>Profili con km</span></div></div></div>'+ 
-        '<div class="helpBox">Ogni blocco mostra la sequenza reale della giornata: partenza, trasferimenti tra aziende e rientri. Il report Excel usa le formule per rimborsi e totali.</div>';
-      let body = results.map(({u,r})=>{
-        const km = Number(r.total||0), rim = km*kmRate(u.id), home = rvKmDisplayHome(u.id), n=(r.stops||[]).filter(s=>!s.sessionStart).length;
-        return '<div class="card rvKmUserCard"><div class="rvKmUserHead"><div><div class="rvKmUserTitle">'+esc(u.name)+'</div><div class="rvKmUserMeta">Partenza: '+esc(home)+'</div></div><div class="rvKmUserTotals"><span class="rvKmPill dark">'+km.toFixed(1)+' km</span><span class="rvKmPill amb">'+eur(kmRate(u.id))+'/km</span><span class="rvKmPill">'+eur(rim)+'</span><span class="rvKmPill">'+n+' tratte</span></div></div><div class="rvKmRoute">'+renderKmRoute(r.stops)+'</div></div>';
-      }).join('');
-      $('p-km').innerHTML = top + (body || '<div class="empty">Nessuno spostamento</div>');
-      saveCloud();
-    }).catch(err=>{
-      $('p-km').innerHTML = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControlsHTML(sel, window.kmStart, window.kmEnd)+'<div class="card"><div class="name">Errore calcolo km</div><div class="small">'+esc(err && err.message ? err.message : 'Errore non specificato')+'</div></div>';
-    });
-  };
-  function kmControlsHTML(sel,start,end){
-    return '<div class="rvKmDetailControls"><div><div class="label">Giornata mostrata</div><input class="input" type="date" value="'+esc(sel)+'" onchange="window.kmDay=this.value;rKm()"></div><button class="btn secondary" onclick="window.kmStart=window.kmDay;window.kmEnd=window.kmDay;rKm()">Usa giornata come periodo</button></div>'+ 
-      '<div class="rvKmExportBar"><div><div class="label">Da</div><input id="kmExportStart" class="input" type="date" value="'+esc(start)+'" onchange="window.kmStart=this.value"></div><div><div class="label">A</div><input id="kmExportEnd" class="input" type="date" value="'+esc(end)+'" onchange="window.kmEnd=this.value"></div><button id="rvKmExportBtn" class="btn rvKmExportBtn" onclick="rvDownloadKmExcel()">Scarica Excel periodo</button></div>';
-  }
-  function isoRange(start,end){
-    const out=[]; let a=new Date(start+'T00:00:00'), b=new Date(end+'T00:00:00');
-    if(isNaN(a)||isNaN(b)) return out; if(a>b){const t=a;a=b;b=t;}
-    for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){out.push(d.toISOString().slice(0,10)); if(out.length>370) break;}
-    return out;
-  }
-  function serviceNames(servs){return (servs||[]).map(s=>{let p=(db.prest||[]).find(p=>p.id==s.id);return (p?p.nome:'Prestazione')+' x'+(s.qty||1)}).join(', ');}
-  async function kmRowsForPeriod(start,end){
-    const dates=isoRange(start,end); if(!dates.length) throw new Error('Periodo non valido');
-    if(dates.length>370) throw new Error('Periodo troppo lungo: scegli massimo 370 giorni.');
-    const users=visibleKmUsers();
-    const rows=[];
-    for(const day of dates){
-      for(const u of users){
-        const r=await routeForAsync(day,u.id); const rate=kmRate(u.id);
-        (r.stops||[]).forEach(s=>{
-          const session=s.sess?sessionLabel(s.sess):sessionNameFromStop(s);
-          rows.push({data:day,collaboratore:u.name,sessione:session,ora:s.ora||'',partenza:s.sessionStart?'':(s.from||''),arrivo:s.sessionStart?(s.to||'Casa'):(s.to||''),km:Number(s.km||0),rate:Number(rate||0),note:s.sessionStart?'Partenza':(s.note||serviceNames(s.servs)||'')});
-        });
-      }
-    }
-    return rows;
-  }
-  window.rvDownloadKmExcel = async function rvDownloadKmExcel(){
-    const start=($('kmExportStart')&&$('kmExportStart').value)||window.kmStart||window.kmDay||iso();
-    const end=($('kmExportEnd')&&$('kmExportEnd').value)||window.kmEnd||start;
-    const btn=$('rvKmExportBtn'); const old=btn?btn.textContent:''; if(btn){btn.disabled=true;btn.textContent='Preparo Excel...';}
-    try{
-      const rows=await kmRowsForPeriod(start,end);
-      const blob=rvBuildKmXlsx(rows,start,end);
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='RuralVet_KM_'+start+'_al_'+end+'.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
-    }catch(err){alert(err && err.message ? err.message : 'Errore nella creazione Excel KM');}
-    finally{if(btn){btn.disabled=false;btn.textContent=old||'Scarica Excel periodo';}}
-  };
-
-  function colName(n){let s='';while(n>0){let m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
-  function cell(row,col,val){const ref=colName(col)+row;if(typeof val==='number'&&isFinite(val)) return '<c r="'+ref+'"><v>'+val+'</v></c>';return '<c r="'+ref+'" t="inlineStr"><is><t>'+xmlEsc(val==null?'':val)+'</t></is></c>';}
-  function formulaCell(row,col,formula,value){const ref=colName(col)+row;let v=(typeof value==='number'&&isFinite(value))?'<v>'+value+'</v>':'';return '<c r="'+ref+'"><f>'+xmlEsc(formula)+'</f>'+v+'</c>';}
-  function rowXml(r,cells){return '<row r="'+r+'">'+cells.join('')+'</row>';}
-  function sheetXml(rows,cols){return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+(cols||'')+'<sheetData>'+rows.join('')+'</sheetData></worksheet>';}
-  function rvBuildKmXlsx(rows,start,end){
-    const headers=['Data','Collaboratore','Sessione','Ora','Partenza','Arrivo','Km tratta','€/km','Rimborso tratta','Note'];
-    const detail=[]; detail.push(rowXml(1,headers.map((h,i)=>cell(1,i+1,h))));
-    let totalKm=0,totalRimb=0;
-    rows.forEach((r,idx)=>{const rr=idx+2;totalKm+=Number(r.km||0);totalRimb+=Number(r.km||0)*Number(r.rate||0);detail.push(rowXml(rr,[cell(rr,1,r.data),cell(rr,2,r.collaboratore),cell(rr,3,r.sessione),cell(rr,4,r.ora),cell(rr,5,r.partenza),cell(rr,6,r.arrivo),cell(rr,7,Number(r.km||0)),cell(rr,8,Number(r.rate||0)),formulaCell(rr,9,'G'+rr+'*H'+rr,Number(r.km||0)*Number(r.rate||0)),cell(rr,10,r.note)]));});
-    const tr=rows.length+3;detail.push(rowXml(tr,[cell(tr,1,'TOTALE'),cell(tr,2,''),cell(tr,3,''),cell(tr,4,''),cell(tr,5,''),cell(tr,6,''),formulaCell(tr,7,'SUM(G2:G'+(rows.length+1)+')',totalKm),cell(tr,8,''),formulaCell(tr,9,'SUM(I2:I'+(rows.length+1)+')',totalRimb),cell(tr,10,'')]))
-    const cols='<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="3" width="16" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/><col min="5" max="6" width="26" customWidth="1"/><col min="7" max="9" width="15" customWidth="1"/><col min="10" max="10" width="42" customWidth="1"/></cols>';
-    const detailSheet=sheetXml(detail,cols);
-    const people=[...new Set(rows.map(r=>r.collaboratore))].sort((a,b)=>a.localeCompare(b,'it'));
-    const sum=[]; sum.push(rowXml(1,[cell(1,1,'Periodo'),cell(1,2,start+' - '+end)])); sum.push(rowXml(2,[cell(2,1,'Collaboratore'),cell(2,2,'Km totali'),cell(2,3,'Rimborso totale'),cell(2,4,'Tratte con km')]));
-    people.forEach((p,i)=>{const rr=i+3;const km=rows.filter(r=>r.collaboratore===p).reduce((s,r)=>s+Number(r.km||0),0);const rim=rows.filter(r=>r.collaboratore===p).reduce((s,r)=>s+Number(r.km||0)*Number(r.rate||0),0);const n=rows.filter(r=>r.collaboratore===p&&Number(r.km||0)>0).length;sum.push(rowXml(rr,[cell(rr,1,p),formulaCell(rr,2,"SUMIFS('Dettaglio KM'!G:G,'Dettaglio KM'!B:B,A"+rr,km),formulaCell(rr,3,"SUMIFS('Dettaglio KM'!I:I,'Dettaglio KM'!B:B,A"+rr,rim),formulaCell(rr,4,"COUNTIFS('Dettaglio KM'!B:B,A"+rr+",'Dettaglio KM'!G:G,\">0\")",n)]));});
-    const sr=people.length+4;sum.push(rowXml(sr,[cell(sr,1,'TOTALE'),formulaCell(sr,2,'SUM(B3:B'+(people.length+2)+')',totalKm),formulaCell(sr,3,'SUM(C3:C'+(people.length+2)+')',totalRimb),formulaCell(sr,4,'SUM(D3:D'+(people.length+2)+')',rows.filter(r=>Number(r.km||0)>0).length)]));
-    const summarySheet=sheetXml(sum,'<cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="4" width="18" customWidth="1"/></cols>');
-    const files={
-      '[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
-      '_rels/.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
-      'xl/workbook.xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Dettaglio KM" sheetId="1" r:id="rId1"/><sheet name="Riepilogo" sheetId="2" r:id="rId2"/></sheets><calcPr calcMode="auto" fullCalcOnLoad="1"/></workbook>',
-      'xl/_rels/workbook.xml.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>',
-      'xl/worksheets/sheet1.xml':detailSheet,
-      'xl/worksheets/sheet2.xml':summarySheet
-    };
-    return new Blob([zipStore(files)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  }
-  function crc32(bytes){const table=crc32.table||(crc32.table=(()=>{let t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})());let c=0xffffffff;for(let i=0;i<bytes.length;i++)c=table[(c^bytes[i])&255]^(c>>>8);return (c^0xffffffff)>>>0;}
-  function pushU16(a,n){a.push(n&255,(n>>>8)&255);}function pushU32(a,n){a.push(n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255);}function dosDate(d){return ((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();}function dosTime(d){return (d.getHours()<<11)|(d.getMinutes()<<5)|(Math.floor(d.getSeconds()/2));}
-  function zipStore(files){const enc=new TextEncoder(),out=[],central=[];let offset=0;const now=new Date(),time=dosTime(now),date=dosDate(now);Object.entries(files).forEach(([name,xml])=>{const nameB=enc.encode(name),data=enc.encode(xml),crc=crc32(data);let local=[];pushU32(local,0x04034b50);pushU16(local,20);pushU16(local,0x0800);pushU16(local,0);pushU16(local,time);pushU16(local,date);pushU32(local,crc);pushU32(local,data.length);pushU32(local,data.length);pushU16(local,nameB.length);pushU16(local,0);out.push(...local,...nameB,...data);let c=[];pushU32(c,0x02014b50);pushU16(c,20);pushU16(c,20);pushU16(c,0x0800);pushU16(c,0);pushU16(c,time);pushU16(c,date);pushU32(c,crc);pushU32(c,data.length);pushU32(c,data.length);pushU16(c,nameB.length);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU32(c,0);pushU32(c,offset);central.push(...c,...nameB);offset+=local.length+nameB.length+data.length;});const centralOffset=out.length;out.push(...central);let end=[];pushU32(end,0x06054b50);pushU16(end,0);pushU16(end,0);pushU16(end,Object.keys(files).length);pushU16(end,Object.keys(files).length);pushU32(end,central.length);pushU32(end,centralOffset);pushU16(end,0);out.push(...end);return new Uint8Array(out);}
-})();
-</script>
-
-</body></html>`;let blob=new Blob([html],{type:'text/html'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Fattura_RuralVet_'+f.num+'.html';a.click();URL.revokeObjectURL(a.href)}
+</style></head><body><button class="print" onclick="window.print()">Stampa / Salva PDF</button><div class="page"><div class="head"><div><div class="brand">Rural Vet</div><div class="mut">Fattura n. ${f.num}</div></div><div style="text-align:right"><b>Data</b><br>${fmt(f.data)}</div></div><div class="box"><b>Cliente</b><br>${f.azNome}</div><table><thead><tr><th>Prestazione</th><th>Q.tà</th><th>Prezzo unit.</th><th>Imponibile</th><th>IVA ${rate}%</th><th>Totale</th></tr></thead><tbody>${rows}</tbody></table><div class="tot"><div><span>Imponibile</span><b>${eur(f.imponibile)}</b></div><div><span>IVA ${rate}%</span><b>${eur(f.iva)}</b></div><div class="grand"><span>Totale fattura</span><b>${eur(f.tot)}</b></div></div><p class="mut">Documento generato da Rural Vet. Apri il file e premi “Stampa / Salva PDF” per consegnarlo al cliente.</p></div></body></html>`;let blob=new Blob([html],{type:'text/html'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Fattura_RuralVet_'+f.num+'.html';a.click();URL.revokeObjectURL(a.href)}
 function rStorico(){let base=current.role==='company'?db.int:db.int.filter(i=>i.userId===current.id);let wid=current.role==='company'?(window.stUser||'all'):current.id;let filteredForUser=base.filter(i=>current.role!=='company'||wid==='all'||i.userId===wid);let days=[...new Set(filteredForUser.map(i=>i.data))].sort();let curMonth=window.stMonth||(days.length?days[days.length-1].slice(0,7):iso().slice(0,7));window.stMonth=curMonth;let validDays=new Set(days);let d=window.stDay;if(!d||!validDays.has(d)){d=[...days].reverse().find(x=>x.slice(0,7)===curMonth)||days[days.length-1]||iso();window.stDay=d}let selector=current.role==='company'?`<select class="input" onchange="window.stUser=this.value;window.stDay='';rStorico()"><option value="all" ${wid==='all'?'selected':''}>Rural Vet</option>${workers().map(w=>`<option value="${w.id}" ${wid===w.id?'selected':''}>${w.name}</option>`).join('')}</select>`:'';function cal(){let [yy,mm]=curMonth.split('-').map(Number),first=new Date(yy,mm-1,1),last=new Date(yy,mm,0),start=(first.getDay()+6)%7,cells='',monthName=first.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase());for(let i=0;i<start;i++)cells+='<button class="calDay" disabled></button>';for(let day=1;day<=last.getDate();day++){let ds=yy+'-'+String(mm).padStart(2,'0')+'-'+String(day).padStart(2,'0'),ok=validDays.has(ds);cells+=`<button class="calDay ${ok?'work':''} ${ds===d?'on':''}" ${ok?`onclick="window.stDay='${ds}';rStorico()"`:'disabled'}>${day}</button>`}return `<div class="calCard"><div class="calHead"><button onclick="moveStMonth(-1)">‹</button><div class="calTitle">${monthName}</div><button onclick="moveStMonth(1)">›</button></div><div class="calWeek"><div>Lu</div><div>Ma</div><div>Me</div><div>Gi</div><div>Ve</div><div>Sa</div><div>Do</div></div><div class="calGrid">${cells}</div></div>`}let ints=db.int.filter(i=>i.data===d&&(current.role==='company'?(wid==='all'||i.userId===wid):i.userId===current.id));$('p-storico').innerHTML=`<div class="titleRow"><div><div class="h">Storico</div><div class="small">Seleziona solo i giorni con attività registrate</div></div></div>${selector?`<div class="selectLine">${selector}</div>`:''}${cal()}${ints.length?ints.sort((a,b)=>(a.ora||'').localeCompare(b.ora||'')).map(i=>cardInt(i,current.role==='company'||current.id==='medardo')).join(''):'<div class="empty">Nessun intervento</div>'}`}
 function moveStMonth(delta){let m=window.stMonth||iso().slice(0,7);let d=new Date(m+'-01T12:00');d.setMonth(d.getMonth()+delta);window.stMonth=d.toISOString().slice(0,7);rStorico()}function rImpost(){if(current.role==='company')return rCompanySettings();let p=db.cfg.personal[current.id]||{};$('p-impost').innerHTML=`<div class="titleRow"><div class="h">Impostazioni</div></div><div class="card"><div class="formGrid"><div><div class="label">Email</div><input id="wEmail" class="input" value="${p.email||''}"></div><div><div class="label">Cellulare</div><input id="wTel" class="input" value="${p.tel||''}"></div><div><div class="label">Indirizzo di casa</div><input id="wHome" class="input" value="${p.home||''}" placeholder="Via..., Comune"></div><div class="small">Usato come casa per i km. La tariffa €/km viene scelta da Rural Vet.</div><button class="btn" onclick="saveWorkerSettings()">Salva</button></div></div>`}function saveWorkerSettings(){db.cfg.personal[current.id]={email:$('wEmail').value,tel:$('wTel').value,home:$('wHome').value};saveCloud();alert('Salvato')}function rCompanySettings(){let rates=workers().map(w=>`<div class="row" style="align-items:end;margin:10px 0"><div class="grow"><div class="label">${w.name} €/km</div><input class="input" type="number" step="0.01" value="${kmRate(w.id)}" onchange="db.cfg.kmRates['${w.id}']=Number(this.value)||0;saveCloud()"></div></div>`).join('');let vat=`<div class="card"><div class="name">Impostazioni fiscali e integrazioni</div><div class="grid2"><div><div class="label">VAT / IVA applicata in fattura</div><select class="input" onchange="db.cfg.iva=Number(this.value);saveCloud();rImpost()"><option value="22" ${(vatRate())===22?'selected':''}>22%</option><option value="10" ${(vatRate())===10?'selected':''}>10%</option><option value="0" ${(vatRate())===0?'selected':''}>Esente / 0%</option></select></div><div><div class="label">OpenRouteService API Key</div><input class="input" value="${db.cfg.orsKey||''}" onchange="db.cfg.orsKey=this.value.trim();saveCloud()"></div><div><div class="label">JSONbin Bin ID</div><input class="input" value="${SYNC.binId||''}" onchange="SYNC.binId=this.value.trim();saveCloud()"></div><div><div class="label">JSONbin Master Key</div><input class="input" type="password" value="${SYNC.apiKey||''}" onchange="SYNC.apiKey=this.value.trim();saveCloud()"></div></div><div class="settingsMini">IVA usata in preview, emissione fattura e pagina stampabile. JSONbin salva i dati in cloud. OpenRouteService calcola i km reali dagli indirizzi di casa e azienda.</div></div>`;let list=`<div class="card"><div class="name">Listino prezzi</div><select class="input" onchange="activeListino=Number(this.value);rImpost()"><option value="0">Tariffario base</option>${db.aziende.map(a=>`<option value="${a.id}" ${activeListino===a.id?'selected':''}>${a.nome}</option>`).join('')}</select>${activeListino?'<button class="btn secondary" style="margin-top:8px" onclick="resetPrezziAzienda()">Reset tariffario azienda</button>':''}<table class="table" style="margin-top:12px"><tr><th>Prestazione</th><th>Prezzo</th></tr>${db.prest.map(p=>`<tr><td>${p.nome}<div class="small">${p.cat}</div></td><td><input class="input" type="number" value="${activeListino?price(p.id,activeListino):p.price}" onchange="setPrice(${p.id},this.value)"></td></tr>`).join('')}</table></div>`;let coll=`<div class="card"><div class="name">Collaboratori</div><div class="grid2"><input id="newName" class="input" placeholder="Nome"><input id="newPass" class="input" placeholder="Password"></div><button class="btn" style="width:100%;margin-top:10px" onclick="addCollab()">Aggiungi collaboratore</button></div>`;$('p-impost').innerHTML=`<div class="titleRow"><div class="h">Impostazioni Company</div></div>${vat}<div class="card"><div class="name">Tariffe km</div>${rates}</div>${list}${coll}`}
 function setPrice(pid,v){v=Number(v)||0;if(activeListino){let az=db.aziende.find(a=>a.id===activeListino);az.prezzi[pid]=v}else db.prest.find(p=>p.id===pid).price=v;db.int.filter(i=>!i.fatt).forEach(i=>i.tot=calcTot(i.servs,i.allId));saveCloud();rImpost()}function resetPrezziAzienda(){let az=db.aziende.find(a=>a.id===activeListino);if(az&&confirm('Reset tariffario azienda?')){az.prezzi={};saveCloud();rImpost()}}function addCollab(){let n=$('newName').value.trim(),p=$('newPass').value.trim();if(!n||!p)return alert('Compila nome e password');let id='c'+Date.now();db.cfg.collaboratori.push({id,name:n,pass:p,icon:initials(n)});db.cfg.personal[id]={email:'',tel:'',home:''};db.cfg.kmRates[id]=.74;saveCloud();setupUser();rImpost()}
@@ -2548,224 +2331,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   const oldEmit = window.emitFatt;
   window.previewFatt=function previewFatt(aid){let arr=db.int.filter(i=>!i.fatt&&i.allId==aid),az=db.aziende.find(a=>a.id==aid),rows=fattRows(arr,aid),imp=rows.reduce((s,r)=>s+r.imp,0),iva=rows.reduce((s,r)=>s+r.iva,0);$('sheet').innerHTML=`<div class="titleRow"><div class="h">Anteprima fattura</div><button class="btn secondary" onclick="closeModal()">Chiudi</button></div><div class="card"><div class="name">${e(billName(az))}</div><div class="meta">${e(az&&az.nome!==billName(az)?az.nome+' · ':'')}${e(fullAddr(az))}<br>${e(fiscalLine(az))}</div><div class="meta">${arr.length} interventi · IVA ${vatRate()}%</div><table class="table"><tr><th>Prestazione</th><th>Q.tà</th><th>Imponibile</th><th>Totale</th></tr>${rows.map(r=>`<tr><td>${e(r.nome)}</td><td>${r.qty}</td><td>${eur(r.imp)}</td><td>${eur(r.tot)}</td></tr>`).join('')}</table><div class="stats" style="margin-top:12px"><div class="stat"><div class="v">${eur(imp)}</div><div class="l">Imponibile</div></div><div class="stat"><div class="v">${eur(iva)}</div><div class="l">IVA</div></div><div class="stat"><div class="v">${eur(imp+iva)}</div><div class="l">Totale</div></div></div><button class="btn" style="width:100%" onclick="emitFatt(${aid})">Emetti e scarica fattura HTML</button></div>`;openModal();};
   window.emitFatt=function emitFatt(aid){let arr=db.int.filter(i=>!i.fatt&&i.allId==aid),az=db.aziende.find(a=>a.id==aid),rows=fattRows(arr,aid),imp=rows.reduce((s,r)=>s+r.imp,0),iva=rows.reduce((s,r)=>s+r.iva,0),f={id:newId('fatt'),num:db.cfg.nextFatt++,azId:aid,azNome:az.nome,azRagioneSociale:billName(az),azAddr:fullAddr(az),azPiva:az.piva||'',azCf:az.cf||'',azSdi:az.sdi||'',data:iso(),interventi:arr.map(i=>i.id),rows,imponibile:imp,iva,ivaRate:vatRate(),tot:imp+iva,pagata:false};arr.forEach(i=>i.fatt=true);db.fatture.push(f);saveCloud();downloadFatt(f.id);closeModal();rFatture();};
-  window.downloadFatt=function downloadFatt(id){let f=db.fatture.find(f=>f.id===id);if(!f)return;let az=db.aziende.find(a=>a.id==f.azId)||{},rate=f.ivaRate||vatRate();let cliente=f.azRagioneSociale||billName(az)||f.azNome;let addr=f.azAddr||fullAddr(az);let fisc=[f.azPiva||az.piva?('P.IVA '+(f.azPiva||az.piva)):'',f.azCf||az.cf?('CF '+(f.azCf||az.cf)):'',f.azSdi||az.sdi?('SDI '+(f.azSdi||az.sdi)):''].filter(Boolean).join(' · ');let rows=(f.rows||[]).map(r=>`<tr><td>${e(r.nome)}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${eur(r.price)}</td><td style="text-align:right">${eur(r.imp)}</td><td style="text-align:right">${eur(r.iva||0)}</td><td style="text-align:right;font-weight:700">${eur(r.tot)}</td></tr>`).join('');let html=`<!doctype html><html><head><meta charset="utf-8"><title>Fattura Rural Vet ${f.num}</title><style>@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600;700;800&display=swap');body{font-family:'EB Garamond',Georgia,serif;margin:0;background:#f7efe2;color:#12301a}.page{max-width:900px;margin:28px auto;background:white;border-radius:18px;padding:42px;box-shadow:0 18px 60px rgba(18,48,26,.15)}.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #12301a;padding-bottom:22px;margin-bottom:26px}.brand{font-size:34px;font-weight:800}.mut{color:#73806d}.box{background:#f7efe2;border-radius:14px;padding:16px;margin:16px 0}table{width:100%;border-collapse:collapse;margin-top:18px}th{background:#12301a;color:white;text-align:left;padding:10px}td{border-bottom:1px solid #e4d7c3;padding:10px}.tot{margin-left:auto;width:320px;margin-top:22px}.tot div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e4d7c3}.grand{font-size:24px;font-weight:800}.print{position:fixed;right:22px;bottom:22px;background:#12301a;color:white;border:0;border-radius:14px;padding:14px 18px;font-weight:800}@media print{body{background:white}.page{box-shadow:none;margin:0;max-width:none}.print{display:none}}</style></head><body><button class="print" onclick="window.print()">Stampa / Salva PDF</button><div class="page"><div class="head"><div><div class="brand">Rural Vet</div><div class="mut">Fattura n. ${f.num}</div></div><div style="text-align:right"><b>Data</b><br>${fmt(f.data)}</div></div><div class="box"><b>Cliente</b><br>${e(cliente)}${addr?'<br>'+e(addr):''}${fisc?'<br>'+e(fisc):''}</div><table><thead><tr><th>Prestazione</th><th>Q.tà</th><th>Prezzo unit.</th><th>Imponibile</th><th>IVA ${rate}%</th><th>Totale</th></tr></thead><tbody>${rows}</tbody></table><div class="tot"><div><span>Imponibile</span><b>${eur(f.imponibile)}</b></div><div><span>IVA ${rate}%</span><b>${eur(f.iva)}</b></div><div class="grand"><span>Totale fattura</span><b>${eur(f.tot)}</b></div></div><p class="mut">Documento generato da Rural Vet. Apri il file e premi “Stampa / Salva PDF” per consegnarlo al cliente.</p></div>
-<style id="rvKmExportAndSoftCards20260522">
-/* Ammorbidimento globale: elimina gli stacchi netti dei riquadri e mantiene ombre piu naturali */
-.card,.stat,.calCard,.backupCard,.vatBox,.rvCompanyCard,.rvKmUserCard,.rvAiWindow,.rvAiSettingsCard,.svc,.prof,.pwdBox,.rvTableWrap,.sheet,.modal .sheet{
-  background:linear-gradient(145deg,rgba(255,255,255,.94) 0%,rgba(255,250,242,.88) 58%,rgba(237,247,234,.80) 100%)!important;
-  border-color:rgba(228,215,195,.66)!important;
-  box-shadow:0 16px 46px rgba(18,48,26,.105),inset 0 1px 0 rgba(255,255,255,.80)!important;
-  background-clip:padding-box!important;
-}
-.card:before,.card:after,.stat:before,.stat:after,.rvHero:after,.rvKmHero:after,.dashHero:after,.top:after{
-  display:none!important;
-}
-.top,.rvHero,.dashHero,.rvKmHero{
-  background:linear-gradient(135deg,rgba(18,48,26,.98),rgba(31,90,48,.96) 62%,rgba(57,160,91,.92))!important;
-  box-shadow:0 18px 54px rgba(18,48,26,.18),inset 0 1px 0 rgba(255,255,255,.18)!important;
-}
-.top{background:linear-gradient(135deg,rgba(255,250,242,.94),rgba(237,247,234,.88))!important;overflow:visible!important}
-.rvKmExportBar{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin:0 0 12px}.rvKmExportBar .label{margin-bottom:4px}.rvKmExportBtn{white-space:nowrap;min-height:50px}.rvKmDetailControls{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-bottom:10px}.rvKmDetailControls .input{min-height:50px}@media(max-width:760px){.rvKmExportBar,.rvKmDetailControls{grid-template-columns:1fr}.rvKmExportBtn{width:100%}}
-.rvKmUserHead{background:linear-gradient(135deg,rgba(255,250,242,.92),rgba(237,247,234,.86))!important}.rvKmStep{background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(255,250,242,.82))!important;box-shadow:0 10px 28px rgba(18,48,26,.06)!important}.rvKmStart{background:linear-gradient(145deg,rgba(247,239,226,.88),rgba(237,247,234,.84))!important}.rvKmDist{box-shadow:inset 0 1px 0 rgba(255,255,255,.65)}
-</style>
-<script id="rvKmExportAndHomePatch20260522">
-(() => {
-  const MEDARDO_HOME_ADDRESS = 'Via Napoli 3, San Giorgio Piacentino';
-  const MEDARDO_HOME_LABEL = 'Casa';
-  function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-  function xmlEsc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[m]));}
-  function safeFmt(d){try{return fmt(d)}catch(e){return d||''}}
-  function rvKmHomeAddress(uid){
-    const p = db && db.cfg && db.cfg.personal && db.cfg.personal[uid] ? db.cfg.personal[uid] : {};
-    const saved = String(p.home || '').trim();
-    if(String(uid)==='medardo') return saved || MEDARDO_HOME_ADDRESS;
-    return saved || 'Casa';
-  }
-  function rvKmDisplayHome(uid){
-    if(String(uid)==='medardo') return MEDARDO_HOME_LABEL;
-    const p = db && db.cfg && db.cfg.personal && db.cfg.personal[uid] ? db.cfg.personal[uid] : {};
-    return p.home ? 'Casa' : 'Casa';
-  }
-  window.rvKmHomeAddress = rvKmHomeAddress;
-  window.rvKmDisplayHome = rvKmDisplayHome;
-
-  window.routeForAsync = async function routeForAsync(day,uid){
-    let ints=(db.int||[]).filter(i=>i.data===day&&i.userId===uid).sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))});
-    let stops=[],total=0,homeAddr=rvKmHomeAddress(uid),homeLabel=rvKmDisplayHome(uid);
-    for(let sess of ['m','p','n']){
-      let si=ints.filter(i=>(i.sess||'m')===sess);
-      if(!si.length) continue;
-      let prevAddr=homeAddr,prevKm=0,prevName=homeLabel;
-      stops.push({from:'',to:homeLabel,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true,sess,note:'Partenza sessione'});
-      for(let idx=0;idx<si.length;idx++){
-        let i=si[idx],a=(db.aziende||[]).find(x=>x.id==i.allId)||{nome:'Azienda',addr:'',km:0};
-        let fallback=idx===0?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
-        let km=await fetchKm(prevAddr,a.addr||a.nome,fallback); total+=km;
-        stops.push({from:idx?prevName:homeLabel,to:a.nome,km:km,ora:i.ora||'',sess,interventoId:i.id,servs:i.servs||[],aziendaId:a.id,note:''});
-        prevAddr=a.addr||a.nome; prevName=a.nome; prevKm=Number(a.km||0);
-      }
-      let km=await fetchKm(prevAddr,homeAddr,prevKm); total+=km;
-      stops.push({from:'Ultima azienda',to:homeLabel,km:km,ora:'Rientro '+sessionLabel(sess),sess,note:'Rientro'});
-    }
-    return {stops,total};
-  };
-  window.routeFor = function routeFor(day,uid){
-    let ints=(db.int||[]).filter(i=>i.data===day&&i.userId===uid).sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))});
-    let stops=[],total=0,homeAddr=rvKmHomeAddress(uid),homeLabel=rvKmDisplayHome(uid);
-    ['m','p','n'].forEach(sess=>{
-      let si=ints.filter(i=>(i.sess||'m')===sess);
-      if(!si.length) return;
-      let prevAddr=homeAddr,prevKm=0,prevName=homeLabel;
-      stops.push({from:'',to:homeLabel,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true,sess,note:'Partenza sessione'});
-      si.forEach((i,idx)=>{
-        let a=(db.aziende||[]).find(x=>x.id==i.allId)||{nome:'Azienda',addr:'',km:0};
-        let fallback=idx===0?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
-        let seg=cachedKm(prevAddr,a.addr||a.nome,fallback); total+=seg;
-        stops.push({from:idx?prevName:homeLabel,to:a.nome,km:seg,ora:i.ora||'',sess,interventoId:i.id,servs:i.servs||[],aziendaId:a.id,note:''});
-        prevAddr=a.addr||a.nome; prevName=a.nome; prevKm=Number(a.km||0);
-      });
-      let seg=cachedKm(prevAddr,homeAddr,prevKm); total+=seg;
-      stops.push({from:'Ultima azienda',to:homeLabel,km:seg,ora:'Rientro '+sessionLabel(sess),sess,note:'Rientro'});
-    });
-    return {stops,total};
-  };
-  window.dayKmFor = function dayKmFor(day,uid){return routeFor(day,uid).total};
-
-  function cleanRouteText(s){
-    if(s.sessionStart) return esc(s.to || 'Casa');
-    let from = String(s.from || '').trim();
-    let to = String(s.to || '').trim();
-    if(from === 'Ultima azienda') return 'Ultima azienda &rarr; ' + esc(to || 'Casa');
-    if(!from) return esc(to || 'Spostamento');
-    return esc(from) + ' &rarr; ' + esc(to || 'Arrivo');
-  }
-  function stopSub(s){
-    const pieces=[];
-    if(s.ora) pieces.push(esc(s.ora));
-    if(s.note && !s.sessionStart) pieces.push(esc(s.note));
-    return pieces.join(' · ');
-  }
-  function sessionNameFromStop(s){
-    if(s.sess && typeof sessionLabel === 'function') return sessionLabel(s.sess);
-    const txt=String(s.ora||'');
-    if(/mattina/i.test(txt)) return 'Mattina';
-    if(/pomeriggio/i.test(txt)) return 'Pomeriggio';
-    if(/notte|urgenza/i.test(txt)) return 'Notte / urgenza';
-    return 'Sessione';
-  }
-  function renderKmRoute(stops){
-    if(!stops || !stops.length) return '<div class="empty">Nessuno spostamento</div>';
-    let html='', step=0;
-    stops.forEach(s=>{
-      if(s.sessionStart){
-        html += '<div class="rvKmSession">' + esc(sessionNameFromStop(s)) + '</div>';
-        html += '<div class="rvKmStep rvKmStart"><div class="rvKmStepNum">0</div><div><div class="rvKmRouteMain">Partenza da ' + esc(s.to || 'Casa') + '</div><div class="rvKmRouteSub">' + esc(s.ora || '') + '</div></div><div class="rvKmDist">Start</div></div>';
-        return;
-      }
-      step += 1;
-      html += '<div class="rvKmStep"><div class="rvKmStepNum">' + step + '</div><div><div class="rvKmRouteMain">' + cleanRouteText(s) + '</div><div class="rvKmRouteSub">' + stopSub(s) + '</div></div><div class="rvKmDist">' + (Number(s.km||0).toFixed(1)) + ' km</div></div>';
-    });
-    return html;
-  }
-  function visibleKmUsers(){return current.role === 'company' ? (typeof rvWorkersKm === 'function' ? rvWorkersKm() : workers()) : [current];}
-  function visibleKmDays(){let visibleInts = current.role === 'company' ? (db.int||[]) : scopeInts();return [...new Set((visibleInts||[]).map(i=>i.data))].sort().reverse();}
-  window.rKm = function rKm(){
-    if(current.role !== 'company' && typeof rvHasKm === 'function' && !rvHasKm(current.id)) return go('oggi');
-    let days = visibleKmDays();
-    let sel = window.kmDay || days[0] || iso(); window.kmDay = sel;
-    window.kmStart = window.kmStart || sel; window.kmEnd = window.kmEnd || sel;
-    let users = visibleKmUsers();
-    $('p-km').innerHTML = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControlsHTML(sel, window.kmStart, window.kmEnd)+'<div class="card"><div class="name">Calcolo percorsi...</div><div class="small">Sto preparando le tappe della giornata e i km per ogni spostamento.</div></div>';
-    Promise.all(users.map(u=>routeForAsync(sel,u.id).then(r=>({u,r})))).then(results=>{
-      let total=0, rimb=0, segments=0;
-      results.forEach(({u,r})=>{ total += Number(r.total||0); rimb += Number(r.total||0)*kmRate(u.id); segments += (r.stops||[]).filter(s=>!s.sessionStart).length; });
-      let top = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControlsHTML(sel, window.kmStart, window.kmEnd)+
-        '<div class="rvKmHero"><div class="small">Dettaglio spostamenti del '+esc(safeFmt(sel))+'</div><div class="rvKmHeroTitle">'+total.toFixed(1)+' km</div><div class="rvKmHeroGrid"><div class="rvKmMini"><b>'+eur(rimb)+'</b><span>Rimborso totale</span></div><div class="rvKmMini"><b>'+segments+'</b><span>Spostamenti</span></div><div class="rvKmMini"><b>'+users.length+'</b><span>Profili con km</span></div></div></div>'+ 
-        '<div class="helpBox">Ogni blocco mostra la sequenza reale della giornata: partenza, trasferimenti tra aziende e rientri. Il report Excel usa le formule per rimborsi e totali.</div>';
-      let body = results.map(({u,r})=>{
-        const km = Number(r.total||0), rim = km*kmRate(u.id), home = rvKmDisplayHome(u.id), n=(r.stops||[]).filter(s=>!s.sessionStart).length;
-        return '<div class="card rvKmUserCard"><div class="rvKmUserHead"><div><div class="rvKmUserTitle">'+esc(u.name)+'</div><div class="rvKmUserMeta">Partenza: '+esc(home)+'</div></div><div class="rvKmUserTotals"><span class="rvKmPill dark">'+km.toFixed(1)+' km</span><span class="rvKmPill amb">'+eur(kmRate(u.id))+'/km</span><span class="rvKmPill">'+eur(rim)+'</span><span class="rvKmPill">'+n+' tratte</span></div></div><div class="rvKmRoute">'+renderKmRoute(r.stops)+'</div></div>';
-      }).join('');
-      $('p-km').innerHTML = top + (body || '<div class="empty">Nessuno spostamento</div>');
-      saveCloud();
-    }).catch(err=>{
-      $('p-km').innerHTML = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControlsHTML(sel, window.kmStart, window.kmEnd)+'<div class="card"><div class="name">Errore calcolo km</div><div class="small">'+esc(err && err.message ? err.message : 'Errore non specificato')+'</div></div>';
-    });
-  };
-  function kmControlsHTML(sel,start,end){
-    return '<div class="rvKmDetailControls"><div><div class="label">Giornata mostrata</div><input class="input" type="date" value="'+esc(sel)+'" onchange="window.kmDay=this.value;rKm()"></div><button class="btn secondary" onclick="window.kmStart=window.kmDay;window.kmEnd=window.kmDay;rKm()">Usa giornata come periodo</button></div>'+ 
-      '<div class="rvKmExportBar"><div><div class="label">Da</div><input id="kmExportStart" class="input" type="date" value="'+esc(start)+'" onchange="window.kmStart=this.value"></div><div><div class="label">A</div><input id="kmExportEnd" class="input" type="date" value="'+esc(end)+'" onchange="window.kmEnd=this.value"></div><button id="rvKmExportBtn" class="btn rvKmExportBtn" onclick="rvDownloadKmExcel()">Scarica Excel periodo</button></div>';
-  }
-  function isoRange(start,end){
-    const out=[]; let a=new Date(start+'T00:00:00'), b=new Date(end+'T00:00:00');
-    if(isNaN(a)||isNaN(b)) return out; if(a>b){const t=a;a=b;b=t;}
-    for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){out.push(d.toISOString().slice(0,10)); if(out.length>370) break;}
-    return out;
-  }
-  function serviceNames(servs){return (servs||[]).map(s=>{let p=(db.prest||[]).find(p=>p.id==s.id);return (p?p.nome:'Prestazione')+' x'+(s.qty||1)}).join(', ');}
-  async function kmRowsForPeriod(start,end){
-    const dates=isoRange(start,end); if(!dates.length) throw new Error('Periodo non valido');
-    if(dates.length>370) throw new Error('Periodo troppo lungo: scegli massimo 370 giorni.');
-    const users=visibleKmUsers();
-    const rows=[];
-    for(const day of dates){
-      for(const u of users){
-        const r=await routeForAsync(day,u.id); const rate=kmRate(u.id);
-        (r.stops||[]).forEach(s=>{
-          const session=s.sess?sessionLabel(s.sess):sessionNameFromStop(s);
-          rows.push({data:day,collaboratore:u.name,sessione:session,ora:s.ora||'',partenza:s.sessionStart?'':(s.from||''),arrivo:s.sessionStart?(s.to||'Casa'):(s.to||''),km:Number(s.km||0),rate:Number(rate||0),note:s.sessionStart?'Partenza':(s.note||serviceNames(s.servs)||'')});
-        });
-      }
-    }
-    return rows;
-  }
-  window.rvDownloadKmExcel = async function rvDownloadKmExcel(){
-    const start=($('kmExportStart')&&$('kmExportStart').value)||window.kmStart||window.kmDay||iso();
-    const end=($('kmExportEnd')&&$('kmExportEnd').value)||window.kmEnd||start;
-    const btn=$('rvKmExportBtn'); const old=btn?btn.textContent:''; if(btn){btn.disabled=true;btn.textContent='Preparo Excel...';}
-    try{
-      const rows=await kmRowsForPeriod(start,end);
-      const blob=rvBuildKmXlsx(rows,start,end);
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='RuralVet_KM_'+start+'_al_'+end+'.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
-    }catch(err){alert(err && err.message ? err.message : 'Errore nella creazione Excel KM');}
-    finally{if(btn){btn.disabled=false;btn.textContent=old||'Scarica Excel periodo';}}
-  };
-
-  function colName(n){let s='';while(n>0){let m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
-  function cell(row,col,val){const ref=colName(col)+row;if(typeof val==='number'&&isFinite(val)) return '<c r="'+ref+'"><v>'+val+'</v></c>';return '<c r="'+ref+'" t="inlineStr"><is><t>'+xmlEsc(val==null?'':val)+'</t></is></c>';}
-  function formulaCell(row,col,formula,value){const ref=colName(col)+row;let v=(typeof value==='number'&&isFinite(value))?'<v>'+value+'</v>':'';return '<c r="'+ref+'"><f>'+xmlEsc(formula)+'</f>'+v+'</c>';}
-  function rowXml(r,cells){return '<row r="'+r+'">'+cells.join('')+'</row>';}
-  function sheetXml(rows,cols){return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+(cols||'')+'<sheetData>'+rows.join('')+'</sheetData></worksheet>';}
-  function rvBuildKmXlsx(rows,start,end){
-    const headers=['Data','Collaboratore','Sessione','Ora','Partenza','Arrivo','Km tratta','€/km','Rimborso tratta','Note'];
-    const detail=[]; detail.push(rowXml(1,headers.map((h,i)=>cell(1,i+1,h))));
-    let totalKm=0,totalRimb=0;
-    rows.forEach((r,idx)=>{const rr=idx+2;totalKm+=Number(r.km||0);totalRimb+=Number(r.km||0)*Number(r.rate||0);detail.push(rowXml(rr,[cell(rr,1,r.data),cell(rr,2,r.collaboratore),cell(rr,3,r.sessione),cell(rr,4,r.ora),cell(rr,5,r.partenza),cell(rr,6,r.arrivo),cell(rr,7,Number(r.km||0)),cell(rr,8,Number(r.rate||0)),formulaCell(rr,9,'G'+rr+'*H'+rr,Number(r.km||0)*Number(r.rate||0)),cell(rr,10,r.note)]));});
-    const tr=rows.length+3;detail.push(rowXml(tr,[cell(tr,1,'TOTALE'),cell(tr,2,''),cell(tr,3,''),cell(tr,4,''),cell(tr,5,''),cell(tr,6,''),formulaCell(tr,7,'SUM(G2:G'+(rows.length+1)+')',totalKm),cell(tr,8,''),formulaCell(tr,9,'SUM(I2:I'+(rows.length+1)+')',totalRimb),cell(tr,10,'')]))
-    const cols='<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="3" width="16" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/><col min="5" max="6" width="26" customWidth="1"/><col min="7" max="9" width="15" customWidth="1"/><col min="10" max="10" width="42" customWidth="1"/></cols>';
-    const detailSheet=sheetXml(detail,cols);
-    const people=[...new Set(rows.map(r=>r.collaboratore))].sort((a,b)=>a.localeCompare(b,'it'));
-    const sum=[]; sum.push(rowXml(1,[cell(1,1,'Periodo'),cell(1,2,start+' - '+end)])); sum.push(rowXml(2,[cell(2,1,'Collaboratore'),cell(2,2,'Km totali'),cell(2,3,'Rimborso totale'),cell(2,4,'Tratte con km')]));
-    people.forEach((p,i)=>{const rr=i+3;const km=rows.filter(r=>r.collaboratore===p).reduce((s,r)=>s+Number(r.km||0),0);const rim=rows.filter(r=>r.collaboratore===p).reduce((s,r)=>s+Number(r.km||0)*Number(r.rate||0),0);const n=rows.filter(r=>r.collaboratore===p&&Number(r.km||0)>0).length;sum.push(rowXml(rr,[cell(rr,1,p),formulaCell(rr,2,"SUMIFS('Dettaglio KM'!G:G,'Dettaglio KM'!B:B,A"+rr,km),formulaCell(rr,3,"SUMIFS('Dettaglio KM'!I:I,'Dettaglio KM'!B:B,A"+rr,rim),formulaCell(rr,4,"COUNTIFS('Dettaglio KM'!B:B,A"+rr+",'Dettaglio KM'!G:G,\">0\")",n)]));});
-    const sr=people.length+4;sum.push(rowXml(sr,[cell(sr,1,'TOTALE'),formulaCell(sr,2,'SUM(B3:B'+(people.length+2)+')',totalKm),formulaCell(sr,3,'SUM(C3:C'+(people.length+2)+')',totalRimb),formulaCell(sr,4,'SUM(D3:D'+(people.length+2)+')',rows.filter(r=>Number(r.km||0)>0).length)]));
-    const summarySheet=sheetXml(sum,'<cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="4" width="18" customWidth="1"/></cols>');
-    const files={
-      '[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
-      '_rels/.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
-      'xl/workbook.xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Dettaglio KM" sheetId="1" r:id="rId1"/><sheet name="Riepilogo" sheetId="2" r:id="rId2"/></sheets><calcPr calcMode="auto" fullCalcOnLoad="1"/></workbook>',
-      'xl/_rels/workbook.xml.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>',
-      'xl/worksheets/sheet1.xml':detailSheet,
-      'xl/worksheets/sheet2.xml':summarySheet
-    };
-    return new Blob([zipStore(files)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  }
-  function crc32(bytes){const table=crc32.table||(crc32.table=(()=>{let t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})());let c=0xffffffff;for(let i=0;i<bytes.length;i++)c=table[(c^bytes[i])&255]^(c>>>8);return (c^0xffffffff)>>>0;}
-  function pushU16(a,n){a.push(n&255,(n>>>8)&255);}function pushU32(a,n){a.push(n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255);}function dosDate(d){return ((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();}function dosTime(d){return (d.getHours()<<11)|(d.getMinutes()<<5)|(Math.floor(d.getSeconds()/2));}
-  function zipStore(files){const enc=new TextEncoder(),out=[],central=[];let offset=0;const now=new Date(),time=dosTime(now),date=dosDate(now);Object.entries(files).forEach(([name,xml])=>{const nameB=enc.encode(name),data=enc.encode(xml),crc=crc32(data);let local=[];pushU32(local,0x04034b50);pushU16(local,20);pushU16(local,0x0800);pushU16(local,0);pushU16(local,time);pushU16(local,date);pushU32(local,crc);pushU32(local,data.length);pushU32(local,data.length);pushU16(local,nameB.length);pushU16(local,0);out.push(...local,...nameB,...data);let c=[];pushU32(c,0x02014b50);pushU16(c,20);pushU16(c,20);pushU16(c,0x0800);pushU16(c,0);pushU16(c,time);pushU16(c,date);pushU32(c,crc);pushU32(c,data.length);pushU32(c,data.length);pushU16(c,nameB.length);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU32(c,0);pushU32(c,offset);central.push(...c,...nameB);offset+=local.length+nameB.length+data.length;});const centralOffset=out.length;out.push(...central);let end=[];pushU32(end,0x06054b50);pushU16(end,0);pushU16(end,0);pushU16(end,Object.keys(files).length);pushU16(end,Object.keys(files).length);pushU32(end,central.length);pushU32(end,centralOffset);pushU16(end,0);out.push(...end);return new Uint8Array(out);}
-})();
-</script>
-
-</body></html>`;let blob=new Blob([html],{type:'text/html'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Fattura_RuralVet_'+f.num+'.html';a.click();URL.revokeObjectURL(a.href);};
+  window.downloadFatt=function downloadFatt(id){let f=db.fatture.find(f=>f.id===id);if(!f)return;let az=db.aziende.find(a=>a.id==f.azId)||{},rate=f.ivaRate||vatRate();let cliente=f.azRagioneSociale||billName(az)||f.azNome;let addr=f.azAddr||fullAddr(az);let fisc=[f.azPiva||az.piva?('P.IVA '+(f.azPiva||az.piva)):'',f.azCf||az.cf?('CF '+(f.azCf||az.cf)):'',f.azSdi||az.sdi?('SDI '+(f.azSdi||az.sdi)):''].filter(Boolean).join(' · ');let rows=(f.rows||[]).map(r=>`<tr><td>${e(r.nome)}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${eur(r.price)}</td><td style="text-align:right">${eur(r.imp)}</td><td style="text-align:right">${eur(r.iva||0)}</td><td style="text-align:right;font-weight:700">${eur(r.tot)}</td></tr>`).join('');let html=`<!doctype html><html><head><meta charset="utf-8"><title>Fattura Rural Vet ${f.num}</title><style>@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600;700;800&display=swap');body{font-family:'EB Garamond',Georgia,serif;margin:0;background:#f7efe2;color:#12301a}.page{max-width:900px;margin:28px auto;background:white;border-radius:18px;padding:42px;box-shadow:0 18px 60px rgba(18,48,26,.15)}.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #12301a;padding-bottom:22px;margin-bottom:26px}.brand{font-size:34px;font-weight:800}.mut{color:#73806d}.box{background:#f7efe2;border-radius:14px;padding:16px;margin:16px 0}table{width:100%;border-collapse:collapse;margin-top:18px}th{background:#12301a;color:white;text-align:left;padding:10px}td{border-bottom:1px solid #e4d7c3;padding:10px}.tot{margin-left:auto;width:320px;margin-top:22px}.tot div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e4d7c3}.grand{font-size:24px;font-weight:800}.print{position:fixed;right:22px;bottom:22px;background:#12301a;color:white;border:0;border-radius:14px;padding:14px 18px;font-weight:800}@media print{body{background:white}.page{box-shadow:none;margin:0;max-width:none}.print{display:none}}</style></head><body><button class="print" onclick="window.print()">Stampa / Salva PDF</button><div class="page"><div class="head"><div><div class="brand">Rural Vet</div><div class="mut">Fattura n. ${f.num}</div></div><div style="text-align:right"><b>Data</b><br>${fmt(f.data)}</div></div><div class="box"><b>Cliente</b><br>${e(cliente)}${addr?'<br>'+e(addr):''}${fisc?'<br>'+e(fisc):''}</div><table><thead><tr><th>Prestazione</th><th>Q.tà</th><th>Prezzo unit.</th><th>Imponibile</th><th>IVA ${rate}%</th><th>Totale</th></tr></thead><tbody>${rows}</tbody></table><div class="tot"><div><span>Imponibile</span><b>${eur(f.imponibile)}</b></div><div><span>IVA ${rate}%</span><b>${eur(f.iva)}</b></div><div class="grand"><span>Totale fattura</span><b>${eur(f.tot)}</b></div></div><p class="mut">Documento generato da Rural Vet. Apri il file e premi “Stampa / Salva PDF” per consegnarlo al cliente.</p></div></body></html>`;let blob=new Blob([html],{type:'text/html'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Fattura_RuralVet_'+f.num+'.html';a.click();URL.revokeObjectURL(a.href);};
 })();
 </script>
 
@@ -2937,219 +2503,249 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
 </script>
 
 
-<style id="rvKmExportAndSoftCards20260522">
-/* Ammorbidimento globale: elimina gli stacchi netti dei riquadri e mantiene ombre piu naturali */
+<style id="rvStableProfilesPatch20260522">
+.card,.stat,.calCard,.backupCard,.rvCompanyCard,.rvKmUserCard{box-shadow:0 16px 44px rgba(18,48,26,.10)!important;background-image:linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,250,242,.96))!important}
+#profiles{display:grid!important;gap:10px!important}
+#profiles.hidden{display:none!important}
+#rvAiLoginCard{margin-top:12px}
+</style>
+<script id="rvStableProfilesPatch20260522">
+(function(){
+  function getEl(id){return document.getElementById(id)}
+  window.rvMedardoHomeAddress = 'Via Napoli 3, San Giorgio Piacentino';
+  function ensureProfilesVisible(){
+    try{
+      if(!window.current){
+        var login=getEl('login'), app=getEl('app'), prof=getEl('profiles');
+        if(login) login.style.display='flex';
+        if(app) app.style.display='none';
+        if(prof && !prof.innerHTML.trim() && typeof window.renderProfiles==='function') window.renderProfiles();
+      }
+    }catch(e){}
+  }
+  document.addEventListener('DOMContentLoaded', function(){ setTimeout(ensureProfilesVisible, 40); setTimeout(ensureProfilesVisible, 400); });
+  window.addEventListener('error', function(){ setTimeout(ensureProfilesVisible, 50); });
+  const oldMigrate = window.migrate;
+  if(typeof oldMigrate === 'function'){
+    window.migrate = function(){
+      const out = oldMigrate.apply(this, arguments);
+      try{
+        if(window.db && db.cfg){
+          db.cfg.personal = db.cfg.personal || {};
+          db.cfg.personal.medardo = db.cfg.personal.medardo || {};
+          if(!db.cfg.personal.medardo.home) db.cfg.personal.medardo.home = window.rvMedardoHomeAddress;
+        }
+      }catch(e){}
+      return out;
+    };
+  }
+  window.rvKmDisplayHome = function(uid){ return String(uid||'') === 'medardo' ? 'Casa' : (typeof homeLabel==='function' ? homeLabel(uid) : 'Casa'); };
+  window.rvKmDisplayStop = function(uid, val){
+    var v = String(val||'');
+    if(String(uid||'') === 'medardo' && /Via Napoli 3/i.test(v) && /San Giorgio Piacentino/i.test(v)) return 'Casa';
+    return v || 'Casa';
+  };
+})();
+</script>
+
+
+<style id="rvKmExportStableSoftCards20260522">
 .card,.stat,.calCard,.backupCard,.vatBox,.rvCompanyCard,.rvKmUserCard,.rvAiWindow,.rvAiSettingsCard,.svc,.prof,.pwdBox,.rvTableWrap,.sheet,.modal .sheet{
-  background:linear-gradient(145deg,rgba(255,255,255,.94) 0%,rgba(255,250,242,.88) 58%,rgba(237,247,234,.80) 100%)!important;
-  border-color:rgba(228,215,195,.66)!important;
+  background:linear-gradient(145deg,rgba(255,255,255,.95) 0%,rgba(255,250,242,.90) 58%,rgba(237,247,234,.82) 100%)!important;
+  border-color:rgba(228,215,195,.62)!important;
   box-shadow:0 16px 46px rgba(18,48,26,.105),inset 0 1px 0 rgba(255,255,255,.80)!important;
   background-clip:padding-box!important;
 }
 .card:before,.card:after,.stat:before,.stat:after,.rvHero:after,.rvKmHero:after,.dashHero:after,.top:after{
   display:none!important;
 }
-.top,.rvHero,.dashHero,.rvKmHero{
+.rvHero,.dashHero,.rvKmHero{
   background:linear-gradient(135deg,rgba(18,48,26,.98),rgba(31,90,48,.96) 62%,rgba(57,160,91,.92))!important;
   box-shadow:0 18px 54px rgba(18,48,26,.18),inset 0 1px 0 rgba(255,255,255,.18)!important;
 }
-.top{background:linear-gradient(135deg,rgba(255,250,242,.94),rgba(237,247,234,.88))!important;overflow:visible!important}
-.rvKmExportBar{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin:0 0 12px}.rvKmExportBar .label{margin-bottom:4px}.rvKmExportBtn{white-space:nowrap;min-height:50px}.rvKmDetailControls{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-bottom:10px}.rvKmDetailControls .input{min-height:50px}@media(max-width:760px){.rvKmExportBar,.rvKmDetailControls{grid-template-columns:1fr}.rvKmExportBtn{width:100%}}
-.rvKmUserHead{background:linear-gradient(135deg,rgba(255,250,242,.92),rgba(237,247,234,.86))!important}.rvKmStep{background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(255,250,242,.82))!important;box-shadow:0 10px 28px rgba(18,48,26,.06)!important}.rvKmStart{background:linear-gradient(145deg,rgba(247,239,226,.88),rgba(237,247,234,.84))!important}.rvKmDist{box-shadow:inset 0 1px 0 rgba(255,255,255,.65)}
+.top{
+  background:linear-gradient(135deg,rgba(255,250,242,.94),rgba(237,247,234,.88))!important;
+  overflow:visible!important;
+}
+.rvKmExportBar{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin:0 0 12px}.rvKmExportBar .label{margin-bottom:4px}.rvKmExportBtn{white-space:nowrap;min-height:50px}.rvKmDetailControls{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-bottom:10px}.rvKmDetailControls .input{min-height:50px}.rvKmUserHead{background:linear-gradient(135deg,rgba(255,250,242,.92),rgba(237,247,234,.86))!important}.rvKmStep{background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(255,250,242,.82))!important;box-shadow:0 10px 28px rgba(18,48,26,.06)!important}.rvKmStart{background:linear-gradient(145deg,rgba(247,239,226,.88),rgba(237,247,234,.84))!important}.rvKmDist{box-shadow:inset 0 1px 0 rgba(255,255,255,.65)}
+@media(max-width:760px){.rvKmExportBar,.rvKmDetailControls{grid-template-columns:1fr}.rvKmExportBtn{width:100%}}
 </style>
-<script id="rvKmExportAndHomePatch20260522">
-(() => {
-  const MEDARDO_HOME_ADDRESS = 'Via Napoli 3, San Giorgio Piacentino';
-  const MEDARDO_HOME_LABEL = 'Casa';
-  function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-  function xmlEsc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[m]));}
-  function safeFmt(d){try{return fmt(d)}catch(e){return d||''}}
-  function rvKmHomeAddress(uid){
-    const p = db && db.cfg && db.cfg.personal && db.cfg.personal[uid] ? db.cfg.personal[uid] : {};
-    const saved = String(p.home || '').trim();
-    if(String(uid)==='medardo') return saved || MEDARDO_HOME_ADDRESS;
-    return saved || 'Casa';
+<script id="rvKmExportStablePatch20260522">
+(function(){
+  var MEDARDO_HOME_ADDRESS = 'Via Napoli 3, San Giorgio Piacentino';
+  function esc(v){return String(v == null ? '' : v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];});}
+  function xmlEsc(v){return String(v == null ? '' : v).replace(/[&<>"']/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[m];});}
+  function todayIso(){try{return iso();}catch(e){return new Date().toISOString().slice(0,10);}}
+  function safeFmt(d){try{return fmt(d);}catch(e){return d || '';}}
+  function safeEur(n){try{return eur(n);}catch(e){return 'EUR '+(Number(n)||0).toFixed(2);}}
+  function hasKmUser(uid){return !(typeof rvHasKm === 'function') || rvHasKm(uid);}
+  function kmUsersVisible(){
+    if(current && current.role === 'company') return (typeof rvWorkersKm === 'function' ? rvWorkersKm() : workers()).filter(function(w){return hasKmUser(w.id);});
+    return current ? [current].filter(function(w){return hasKmUser(w.id);}) : [];
   }
-  function rvKmDisplayHome(uid){
-    if(String(uid)==='medardo') return MEDARDO_HOME_LABEL;
-    const p = db && db.cfg && db.cfg.personal && db.cfg.personal[uid] ? db.cfg.personal[uid] : {};
-    return p.home ? 'Casa' : 'Casa';
+  function kmHomeAddress(uid){
+    if(String(uid) === 'medardo') return MEDARDO_HOME_ADDRESS;
+    var p = db && db.cfg && db.cfg.personal && db.cfg.personal[uid] ? db.cfg.personal[uid] : {};
+    return String(p.home || '').trim() || 'Casa';
   }
-  window.rvKmHomeAddress = rvKmHomeAddress;
-  window.rvKmDisplayHome = rvKmDisplayHome;
-
+  function kmHomeLabel(uid){
+    if(String(uid) === 'medardo') return 'Casa';
+    return 'Casa';
+  }
+  window.rvKmHomeAddress = kmHomeAddress;
+  window.rvKmDisplayHome = kmHomeLabel;
+  window.rvKmDisplayStop = function(uid,val){
+    var v = String(val || '');
+    if(String(uid) === 'medardo' && /Via Napoli 3/i.test(v) && /San Giorgio Piacentino/i.test(v)) return 'Casa';
+    return v || 'Casa';
+  };
+  function ensureMedardoHome(){
+    try{
+      db.cfg = db.cfg || {}; db.cfg.personal = db.cfg.personal || {}; db.cfg.personal.medardo = db.cfg.personal.medardo || {};
+      db.cfg.personal.medardo.home = MEDARDO_HOME_ADDRESS;
+    }catch(e){}
+  }
+  var oldMigrate = window.migrate;
+  if(typeof oldMigrate === 'function'){
+    window.migrate = function(){var out = oldMigrate.apply(this,arguments); ensureMedardoHome(); return out;};
+  }
+  ensureMedardoHome();
   window.routeForAsync = async function routeForAsync(day,uid){
-    let ints=(db.int||[]).filter(i=>i.data===day&&i.userId===uid).sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))});
-    let stops=[],total=0,homeAddr=rvKmHomeAddress(uid),homeLabel=rvKmDisplayHome(uid);
-    for(let sess of ['m','p','n']){
-      let si=ints.filter(i=>(i.sess||'m')===sess);
+    var ints=(db.int||[]).filter(function(i){return i.data===day && i.userId===uid;}).sort(function(a,b){var so=sessionOrder(a.sess)-sessionOrder(b.sess);return so || ((a.ora||'').localeCompare(b.ora||''));});
+    var stops=[], total=0, homeAddr=kmHomeAddress(uid), homeLab=kmHomeLabel(uid);
+    for(var siSess=0; siSess<['m','p','n'].length; siSess++){
+      var sess=['m','p','n'][siSess];
+      var si=ints.filter(function(i){return (i.sess||'m')===sess;});
       if(!si.length) continue;
-      let prevAddr=homeAddr,prevKm=0,prevName=homeLabel;
-      stops.push({from:'',to:homeLabel,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true,sess,note:'Partenza sessione'});
-      for(let idx=0;idx<si.length;idx++){
-        let i=si[idx],a=(db.aziende||[]).find(x=>x.id==i.allId)||{nome:'Azienda',addr:'',km:0};
-        let fallback=idx===0?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
-        let km=await fetchKm(prevAddr,a.addr||a.nome,fallback); total+=km;
-        stops.push({from:idx?prevName:homeLabel,to:a.nome,km:km,ora:i.ora||'',sess,interventoId:i.id,servs:i.servs||[],aziendaId:a.id,note:''});
+      var prevAddr=homeAddr, prevKm=0, prevName=homeLab;
+      stops.push({from:'',to:homeLab,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true,sess:sess,note:'Partenza sessione'});
+      for(var idx=0; idx<si.length; idx++){
+        var i=si[idx], a=(db.aziende||[]).find(function(x){return x.id==i.allId;}) || {nome:'Azienda',addr:'',km:0};
+        var fallback=idx===0 ? Number(a.km||0) : (Math.abs(Number(a.km||0)-prevKm) || Number(a.km||0));
+        var km=await fetchKm(prevAddr,a.addr||a.nome,fallback); total+=Number(km||0);
+        stops.push({from:idx?prevName:homeLab,to:a.nome,km:Number(km||0),ora:i.ora||'',sess:sess,interventoId:i.id,servs:i.servs||[],aziendaId:a.id,note:''});
         prevAddr=a.addr||a.nome; prevName=a.nome; prevKm=Number(a.km||0);
       }
-      let km=await fetchKm(prevAddr,homeAddr,prevKm); total+=km;
-      stops.push({from:'Ultima azienda',to:homeLabel,km:km,ora:'Rientro '+sessionLabel(sess),sess,note:'Rientro'});
+      var kmBack=await fetchKm(prevAddr,homeAddr,prevKm); total+=Number(kmBack||0);
+      stops.push({from:'Ultima azienda',to:homeLab,km:Number(kmBack||0),ora:'Rientro '+sessionLabel(sess),sess:sess,note:'Rientro'});
     }
-    return {stops,total};
+    return {stops:stops,total:total};
   };
   window.routeFor = function routeFor(day,uid){
-    let ints=(db.int||[]).filter(i=>i.data===day&&i.userId===uid).sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))});
-    let stops=[],total=0,homeAddr=rvKmHomeAddress(uid),homeLabel=rvKmDisplayHome(uid);
-    ['m','p','n'].forEach(sess=>{
-      let si=ints.filter(i=>(i.sess||'m')===sess);
-      if(!si.length) return;
-      let prevAddr=homeAddr,prevKm=0,prevName=homeLabel;
-      stops.push({from:'',to:homeLabel,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true,sess,note:'Partenza sessione'});
-      si.forEach((i,idx)=>{
-        let a=(db.aziende||[]).find(x=>x.id==i.allId)||{nome:'Azienda',addr:'',km:0};
-        let fallback=idx===0?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
-        let seg=cachedKm(prevAddr,a.addr||a.nome,fallback); total+=seg;
-        stops.push({from:idx?prevName:homeLabel,to:a.nome,km:seg,ora:i.ora||'',sess,interventoId:i.id,servs:i.servs||[],aziendaId:a.id,note:''});
+    var ints=(db.int||[]).filter(function(i){return i.data===day && i.userId===uid;}).sort(function(a,b){var so=sessionOrder(a.sess)-sessionOrder(b.sess);return so || ((a.ora||'').localeCompare(b.ora||''));});
+    var stops=[], total=0, homeAddr=kmHomeAddress(uid), homeLab=kmHomeLabel(uid);
+    ['m','p','n'].forEach(function(sess){
+      var si=ints.filter(function(i){return (i.sess||'m')===sess;}); if(!si.length) return;
+      var prevAddr=homeAddr, prevKm=0, prevName=homeLab;
+      stops.push({from:'',to:homeLab,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true,sess:sess,note:'Partenza sessione'});
+      si.forEach(function(i,idx){
+        var a=(db.aziende||[]).find(function(x){return x.id==i.allId;}) || {nome:'Azienda',addr:'',km:0};
+        var fallback=idx===0 ? Number(a.km||0) : (Math.abs(Number(a.km||0)-prevKm) || Number(a.km||0));
+        var seg=cachedKm(prevAddr,a.addr||a.nome,fallback); total+=Number(seg||0);
+        stops.push({from:idx?prevName:homeLab,to:a.nome,km:Number(seg||0),ora:i.ora||'',sess:sess,interventoId:i.id,servs:i.servs||[],aziendaId:a.id,note:''});
         prevAddr=a.addr||a.nome; prevName=a.nome; prevKm=Number(a.km||0);
       });
-      let seg=cachedKm(prevAddr,homeAddr,prevKm); total+=seg;
-      stops.push({from:'Ultima azienda',to:homeLabel,km:seg,ora:'Rientro '+sessionLabel(sess),sess,note:'Rientro'});
+      var back=cachedKm(prevAddr,homeAddr,prevKm); total+=Number(back||0);
+      stops.push({from:'Ultima azienda',to:homeLab,km:Number(back||0),ora:'Rientro '+sessionLabel(sess),sess:sess,note:'Rientro'});
     });
-    return {stops,total};
+    return {stops:stops,total:total};
   };
-  window.dayKmFor = function dayKmFor(day,uid){return routeFor(day,uid).total};
-
+  window.dayKmFor = function dayKmFor(day,uid){return window.routeFor(day,uid).total;};
+  function visibleKmDays(){var visible=(current && current.role==='company') ? (db.int||[]) : (typeof scopeInts==='function'?scopeInts():[]);return Array.from(new Set((visible||[]).map(function(i){return i.data;}))).sort().reverse();}
   function cleanRouteText(s){
     if(s.sessionStart) return esc(s.to || 'Casa');
-    let from = String(s.from || '').trim();
-    let to = String(s.to || '').trim();
-    if(from === 'Ultima azienda') return 'Ultima azienda &rarr; ' + esc(to || 'Casa');
-    if(!from) return esc(to || 'Spostamento');
-    return esc(from) + ' &rarr; ' + esc(to || 'Arrivo');
+    var from=String(s.from||'').trim(), to=String(s.to||'').trim();
+    if(from==='Ultima azienda') return 'Ultima azienda &rarr; '+esc(to||'Casa');
+    if(!from) return esc(to||'Spostamento');
+    return esc(from)+' &rarr; '+esc(to||'Arrivo');
   }
-  function stopSub(s){
-    const pieces=[];
-    if(s.ora) pieces.push(esc(s.ora));
-    if(s.note && !s.sessionStart) pieces.push(esc(s.note));
-    return pieces.join(' · ');
-  }
-  function sessionNameFromStop(s){
-    if(s.sess && typeof sessionLabel === 'function') return sessionLabel(s.sess);
-    const txt=String(s.ora||'');
-    if(/mattina/i.test(txt)) return 'Mattina';
-    if(/pomeriggio/i.test(txt)) return 'Pomeriggio';
-    if(/notte|urgenza/i.test(txt)) return 'Notte / urgenza';
-    return 'Sessione';
-  }
-  function renderKmRoute(stops){
+  function sessionName(s){if(s.sess && typeof sessionLabel==='function') return sessionLabel(s.sess); return 'Sessione';}
+  function serviceNames(servs){return (servs||[]).map(function(s){var p=(db.prest||[]).find(function(p){return p.id==s.id;});return (p?p.nome:'Prestazione')+' x'+(s.qty||1);}).join(', ');}
+  function renderRoute(stops){
     if(!stops || !stops.length) return '<div class="empty">Nessuno spostamento</div>';
-    let html='', step=0;
-    stops.forEach(s=>{
+    var html='', step=0;
+    stops.forEach(function(s){
       if(s.sessionStart){
-        html += '<div class="rvKmSession">' + esc(sessionNameFromStop(s)) + '</div>';
-        html += '<div class="rvKmStep rvKmStart"><div class="rvKmStepNum">0</div><div><div class="rvKmRouteMain">Partenza da ' + esc(s.to || 'Casa') + '</div><div class="rvKmRouteSub">' + esc(s.ora || '') + '</div></div><div class="rvKmDist">Start</div></div>';
-        return;
+        html += '<div class="rvKmSession">'+esc(sessionName(s))+'</div>';
+        html += '<div class="rvKmStep rvKmStart"><div class="rvKmStepNum">0</div><div><div class="rvKmRouteMain">Partenza da '+esc(s.to||'Casa')+'</div><div class="rvKmRouteSub">'+esc(s.ora||'')+'</div></div><div class="rvKmDist">Start</div></div>';
+      }else{
+        step += 1;
+        var sub=[s.ora||'',s.note||serviceNames(s.servs)||''].filter(Boolean).map(esc).join(' · ');
+        html += '<div class="rvKmStep"><div class="rvKmStepNum">'+step+'</div><div><div class="rvKmRouteMain">'+cleanRouteText(s)+'</div><div class="rvKmRouteSub">'+sub+'</div></div><div class="rvKmDist">'+Number(s.km||0).toFixed(1)+' km</div></div>';
       }
-      step += 1;
-      html += '<div class="rvKmStep"><div class="rvKmStepNum">' + step + '</div><div><div class="rvKmRouteMain">' + cleanRouteText(s) + '</div><div class="rvKmRouteSub">' + stopSub(s) + '</div></div><div class="rvKmDist">' + (Number(s.km||0).toFixed(1)) + ' km</div></div>';
     });
     return html;
   }
-  function visibleKmUsers(){return current.role === 'company' ? (typeof rvWorkersKm === 'function' ? rvWorkersKm() : workers()) : [current];}
-  function visibleKmDays(){let visibleInts = current.role === 'company' ? (db.int||[]) : scopeInts();return [...new Set((visibleInts||[]).map(i=>i.data))].sort().reverse();}
-  window.rKm = function rKm(){
-    if(current.role !== 'company' && typeof rvHasKm === 'function' && !rvHasKm(current.id)) return go('oggi');
-    let days = visibleKmDays();
-    let sel = window.kmDay || days[0] || iso(); window.kmDay = sel;
-    window.kmStart = window.kmStart || sel; window.kmEnd = window.kmEnd || sel;
-    let users = visibleKmUsers();
-    $('p-km').innerHTML = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControlsHTML(sel, window.kmStart, window.kmEnd)+'<div class="card"><div class="name">Calcolo percorsi...</div><div class="small">Sto preparando le tappe della giornata e i km per ogni spostamento.</div></div>';
-    Promise.all(users.map(u=>routeForAsync(sel,u.id).then(r=>({u,r})))).then(results=>{
-      let total=0, rimb=0, segments=0;
-      results.forEach(({u,r})=>{ total += Number(r.total||0); rimb += Number(r.total||0)*kmRate(u.id); segments += (r.stops||[]).filter(s=>!s.sessionStart).length; });
-      let top = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControlsHTML(sel, window.kmStart, window.kmEnd)+
-        '<div class="rvKmHero"><div class="small">Dettaglio spostamenti del '+esc(safeFmt(sel))+'</div><div class="rvKmHeroTitle">'+total.toFixed(1)+' km</div><div class="rvKmHeroGrid"><div class="rvKmMini"><b>'+eur(rimb)+'</b><span>Rimborso totale</span></div><div class="rvKmMini"><b>'+segments+'</b><span>Spostamenti</span></div><div class="rvKmMini"><b>'+users.length+'</b><span>Profili con km</span></div></div></div>'+ 
-        '<div class="helpBox">Ogni blocco mostra la sequenza reale della giornata: partenza, trasferimenti tra aziende e rientri. Il report Excel usa le formule per rimborsi e totali.</div>';
-      let body = results.map(({u,r})=>{
-        const km = Number(r.total||0), rim = km*kmRate(u.id), home = rvKmDisplayHome(u.id), n=(r.stops||[]).filter(s=>!s.sessionStart).length;
-        return '<div class="card rvKmUserCard"><div class="rvKmUserHead"><div><div class="rvKmUserTitle">'+esc(u.name)+'</div><div class="rvKmUserMeta">Partenza: '+esc(home)+'</div></div><div class="rvKmUserTotals"><span class="rvKmPill dark">'+km.toFixed(1)+' km</span><span class="rvKmPill amb">'+eur(kmRate(u.id))+'/km</span><span class="rvKmPill">'+eur(rim)+'</span><span class="rvKmPill">'+n+' tratte</span></div></div><div class="rvKmRoute">'+renderKmRoute(r.stops)+'</div></div>';
-      }).join('');
-      $('p-km').innerHTML = top + (body || '<div class="empty">Nessuno spostamento</div>');
-      saveCloud();
-    }).catch(err=>{
-      $('p-km').innerHTML = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControlsHTML(sel, window.kmStart, window.kmEnd)+'<div class="card"><div class="name">Errore calcolo km</div><div class="small">'+esc(err && err.message ? err.message : 'Errore non specificato')+'</div></div>';
-    });
-  };
-  function kmControlsHTML(sel,start,end){
+  function kmControls(sel,start,end){
     return '<div class="rvKmDetailControls"><div><div class="label">Giornata mostrata</div><input class="input" type="date" value="'+esc(sel)+'" onchange="window.kmDay=this.value;rKm()"></div><button class="btn secondary" onclick="window.kmStart=window.kmDay;window.kmEnd=window.kmDay;rKm()">Usa giornata come periodo</button></div>'+ 
       '<div class="rvKmExportBar"><div><div class="label">Da</div><input id="kmExportStart" class="input" type="date" value="'+esc(start)+'" onchange="window.kmStart=this.value"></div><div><div class="label">A</div><input id="kmExportEnd" class="input" type="date" value="'+esc(end)+'" onchange="window.kmEnd=this.value"></div><button id="rvKmExportBtn" class="btn rvKmExportBtn" onclick="rvDownloadKmExcel()">Scarica Excel periodo</button></div>';
   }
-  function isoRange(start,end){
-    const out=[]; let a=new Date(start+'T00:00:00'), b=new Date(end+'T00:00:00');
-    if(isNaN(a)||isNaN(b)) return out; if(a>b){const t=a;a=b;b=t;}
-    for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){out.push(d.toISOString().slice(0,10)); if(out.length>370) break;}
-    return out;
-  }
-  function serviceNames(servs){return (servs||[]).map(s=>{let p=(db.prest||[]).find(p=>p.id==s.id);return (p?p.nome:'Prestazione')+' x'+(s.qty||1)}).join(', ');}
-  async function kmRowsForPeriod(start,end){
-    const dates=isoRange(start,end); if(!dates.length) throw new Error('Periodo non valido');
-    if(dates.length>370) throw new Error('Periodo troppo lungo: scegli massimo 370 giorni.');
-    const users=visibleKmUsers();
-    const rows=[];
-    for(const day of dates){
-      for(const u of users){
-        const r=await routeForAsync(day,u.id); const rate=kmRate(u.id);
-        (r.stops||[]).forEach(s=>{
-          const session=s.sess?sessionLabel(s.sess):sessionNameFromStop(s);
-          rows.push({data:day,collaboratore:u.name,sessione:session,ora:s.ora||'',partenza:s.sessionStart?'':(s.from||''),arrivo:s.sessionStart?(s.to||'Casa'):(s.to||''),km:Number(s.km||0),rate:Number(rate||0),note:s.sessionStart?'Partenza':(s.note||serviceNames(s.servs)||'')});
-        });
+  window.rKm = function rKm(){
+    if(current.role !== 'company' && !hasKmUser(current.id)) return go('oggi');
+    var days=visibleKmDays(), sel=window.kmDay || days[0] || todayIso(); window.kmDay=sel;
+    window.kmStart=window.kmStart || sel; window.kmEnd=window.kmEnd || sel;
+    var users=kmUsersVisible();
+    $('p-km').innerHTML='<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControls(sel,window.kmStart,window.kmEnd)+'<div class="card"><div class="name">Calcolo percorsi...</div><div class="small">Sto preparando le tappe della giornata e i km per ogni spostamento.</div></div>';
+    Promise.all(users.map(function(u){return routeForAsync(sel,u.id).then(function(r){return {u:u,r:r};});})).then(function(results){
+      var total=0,rimb=0,segments=0;
+      results.forEach(function(x){total+=Number(x.r.total||0);rimb+=Number(x.r.total||0)*kmRate(x.u.id);segments+=(x.r.stops||[]).filter(function(s){return !s.sessionStart;}).length;});
+      var top='<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControls(sel,window.kmStart,window.kmEnd)+
+        '<div class="rvKmHero"><div class="small">Dettaglio spostamenti del '+esc(safeFmt(sel))+'</div><div class="rvKmHeroTitle">'+total.toFixed(1)+' km</div><div class="rvKmHeroGrid"><div class="rvKmMini"><b>'+safeEur(rimb)+'</b><span>Rimborso totale</span></div><div class="rvKmMini"><b>'+segments+'</b><span>Spostamenti</span></div><div class="rvKmMini"><b>'+users.length+'</b><span>Profili con km</span></div></div></div>'+ 
+        '<div class="helpBox">Ogni blocco mostra la sequenza reale della giornata: partenza, trasferimenti tra aziende e rientri. Il report Excel usa formule per rimborsi e totali.</div>';
+      var body=results.map(function(x){
+        var u=x.u,r=x.r,km=Number(r.total||0),rim=km*kmRate(u.id),n=(r.stops||[]).filter(function(s){return !s.sessionStart;}).length;
+        return '<div class="card rvKmUserCard"><div class="rvKmUserHead"><div><div class="rvKmUserTitle">'+esc(u.name)+'</div><div class="rvKmUserMeta">Partenza: '+esc(kmHomeLabel(u.id))+'</div></div><div class="rvKmUserTotals"><span class="rvKmPill dark">'+km.toFixed(1)+' km</span><span class="rvKmPill amb">'+safeEur(kmRate(u.id))+'/km</span><span class="rvKmPill">'+safeEur(rim)+'</span><span class="rvKmPill">'+n+' tratte</span></div></div><div class="rvKmRoute">'+renderRoute(r.stops)+'</div></div>';
+      }).join('');
+      $('p-km').innerHTML=top+(body||'<div class="empty">Nessuno spostamento</div>');
+      try{saveCloud();}catch(e){}
+    }).catch(function(err){$('p-km').innerHTML='<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+kmControls(sel,window.kmStart,window.kmEnd)+'<div class="card"><div class="name">Errore calcolo km</div><div class="small">'+esc(err && err.message ? err.message : 'Errore non specificato')+'</div></div>';});
+  };
+  function isoRange(start,end){var out=[],a=new Date(start+'T00:00:00'),b=new Date(end+'T00:00:00');if(isNaN(a)||isNaN(b))return out;if(a>b){var t=a;a=b;b=t;}for(var d=new Date(a);d<=b;d.setDate(d.getDate()+1)){out.push(d.toISOString().slice(0,10));if(out.length>370)break;}return out;}
+  async function rowsForPeriod(start,end){
+    var dates=isoRange(start,end); if(!dates.length) throw new Error('Periodo non valido'); if(dates.length>370) throw new Error('Periodo troppo lungo: massimo 370 giorni.');
+    var users=kmUsersVisible(), rows=[];
+    for(var di=0;di<dates.length;di++){
+      var day=dates[di];
+      for(var ui=0;ui<users.length;ui++){
+        var u=users[ui], r=await routeForAsync(day,u.id), rate=kmRate(u.id);
+        (r.stops||[]).forEach(function(s){rows.push({data:day,collaboratore:u.name,sessione:s.sess?sessionLabel(s.sess):sessionName(s),ora:s.ora||'',partenza:s.sessionStart?'':(s.from||''),arrivo:s.sessionStart?(s.to||'Casa'):(s.to||''),km:Number(s.km||0),rate:Number(rate||0),note:s.sessionStart?'Partenza':(s.note||serviceNames(s.servs)||'')});});
       }
     }
     return rows;
   }
   window.rvDownloadKmExcel = async function rvDownloadKmExcel(){
-    const start=($('kmExportStart')&&$('kmExportStart').value)||window.kmStart||window.kmDay||iso();
-    const end=($('kmExportEnd')&&$('kmExportEnd').value)||window.kmEnd||start;
-    const btn=$('rvKmExportBtn'); const old=btn?btn.textContent:''; if(btn){btn.disabled=true;btn.textContent='Preparo Excel...';}
-    try{
-      const rows=await kmRowsForPeriod(start,end);
-      const blob=rvBuildKmXlsx(rows,start,end);
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='RuralVet_KM_'+start+'_al_'+end+'.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1500);
-    }catch(err){alert(err && err.message ? err.message : 'Errore nella creazione Excel KM');}
-    finally{if(btn){btn.disabled=false;btn.textContent=old||'Scarica Excel periodo';}}
+    var start=($('kmExportStart')&&$('kmExportStart').value)||window.kmStart||window.kmDay||todayIso();
+    var end=($('kmExportEnd')&&$('kmExportEnd').value)||window.kmEnd||start;
+    var btn=$('rvKmExportBtn'), old=btn?btn.textContent:''; if(btn){btn.disabled=true;btn.textContent='Preparo Excel...';}
+    try{var rows=await rowsForPeriod(start,end);var blob=buildXlsx(rows,start,end);var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='RuralVet_KM_'+start+'_al_'+end+'.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href);},1500);}catch(err){alert(err&&err.message?err.message:'Errore nella creazione Excel KM');}finally{if(btn){btn.disabled=false;btn.textContent=old||'Scarica Excel periodo';}}
   };
-
-  function colName(n){let s='';while(n>0){let m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
-  function cell(row,col,val){const ref=colName(col)+row;if(typeof val==='number'&&isFinite(val)) return '<c r="'+ref+'"><v>'+val+'</v></c>';return '<c r="'+ref+'" t="inlineStr"><is><t>'+xmlEsc(val==null?'':val)+'</t></is></c>';}
-  function formulaCell(row,col,formula,value){const ref=colName(col)+row;let v=(typeof value==='number'&&isFinite(value))?'<v>'+value+'</v>':'';return '<c r="'+ref+'"><f>'+xmlEsc(formula)+'</f>'+v+'</c>';}
+  function colName(n){var s='';while(n>0){var m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
+  function cell(row,col,val){var ref=colName(col)+row;if(typeof val==='number'&&isFinite(val))return '<c r="'+ref+'"><v>'+val+'</v></c>';return '<c r="'+ref+'" t="inlineStr"><is><t>'+xmlEsc(val==null?'':val)+'</t></is></c>';}
+  function fcell(row,col,formula,value){var ref=colName(col)+row;var v=(typeof value==='number'&&isFinite(value))?'<v>'+value+'</v>':'';return '<c r="'+ref+'"><f>'+xmlEsc(formula)+'</f>'+v+'</c>';}
   function rowXml(r,cells){return '<row r="'+r+'">'+cells.join('')+'</row>';}
   function sheetXml(rows,cols){return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+(cols||'')+'<sheetData>'+rows.join('')+'</sheetData></worksheet>';}
-  function rvBuildKmXlsx(rows,start,end){
-    const headers=['Data','Collaboratore','Sessione','Ora','Partenza','Arrivo','Km tratta','€/km','Rimborso tratta','Note'];
-    const detail=[]; detail.push(rowXml(1,headers.map((h,i)=>cell(1,i+1,h))));
-    let totalKm=0,totalRimb=0;
-    rows.forEach((r,idx)=>{const rr=idx+2;totalKm+=Number(r.km||0);totalRimb+=Number(r.km||0)*Number(r.rate||0);detail.push(rowXml(rr,[cell(rr,1,r.data),cell(rr,2,r.collaboratore),cell(rr,3,r.sessione),cell(rr,4,r.ora),cell(rr,5,r.partenza),cell(rr,6,r.arrivo),cell(rr,7,Number(r.km||0)),cell(rr,8,Number(r.rate||0)),formulaCell(rr,9,'G'+rr+'*H'+rr,Number(r.km||0)*Number(r.rate||0)),cell(rr,10,r.note)]));});
-    const tr=rows.length+3;detail.push(rowXml(tr,[cell(tr,1,'TOTALE'),cell(tr,2,''),cell(tr,3,''),cell(tr,4,''),cell(tr,5,''),cell(tr,6,''),formulaCell(tr,7,'SUM(G2:G'+(rows.length+1)+')',totalKm),cell(tr,8,''),formulaCell(tr,9,'SUM(I2:I'+(rows.length+1)+')',totalRimb),cell(tr,10,'')]))
-    const cols='<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="3" width="16" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/><col min="5" max="6" width="26" customWidth="1"/><col min="7" max="9" width="15" customWidth="1"/><col min="10" max="10" width="42" customWidth="1"/></cols>';
-    const detailSheet=sheetXml(detail,cols);
-    const people=[...new Set(rows.map(r=>r.collaboratore))].sort((a,b)=>a.localeCompare(b,'it'));
-    const sum=[]; sum.push(rowXml(1,[cell(1,1,'Periodo'),cell(1,2,start+' - '+end)])); sum.push(rowXml(2,[cell(2,1,'Collaboratore'),cell(2,2,'Km totali'),cell(2,3,'Rimborso totale'),cell(2,4,'Tratte con km')]));
-    people.forEach((p,i)=>{const rr=i+3;const km=rows.filter(r=>r.collaboratore===p).reduce((s,r)=>s+Number(r.km||0),0);const rim=rows.filter(r=>r.collaboratore===p).reduce((s,r)=>s+Number(r.km||0)*Number(r.rate||0),0);const n=rows.filter(r=>r.collaboratore===p&&Number(r.km||0)>0).length;sum.push(rowXml(rr,[cell(rr,1,p),formulaCell(rr,2,"SUMIFS('Dettaglio KM'!G:G,'Dettaglio KM'!B:B,A"+rr,km),formulaCell(rr,3,"SUMIFS('Dettaglio KM'!I:I,'Dettaglio KM'!B:B,A"+rr,rim),formulaCell(rr,4,"COUNTIFS('Dettaglio KM'!B:B,A"+rr+",'Dettaglio KM'!G:G,\">0\")",n)]));});
-    const sr=people.length+4;sum.push(rowXml(sr,[cell(sr,1,'TOTALE'),formulaCell(sr,2,'SUM(B3:B'+(people.length+2)+')',totalKm),formulaCell(sr,3,'SUM(C3:C'+(people.length+2)+')',totalRimb),formulaCell(sr,4,'SUM(D3:D'+(people.length+2)+')',rows.filter(r=>Number(r.km||0)>0).length)]));
-    const summarySheet=sheetXml(sum,'<cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="4" width="18" customWidth="1"/></cols>');
-    const files={
-      '[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
-      '_rels/.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
-      'xl/workbook.xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Dettaglio KM" sheetId="1" r:id="rId1"/><sheet name="Riepilogo" sheetId="2" r:id="rId2"/></sheets><calcPr calcMode="auto" fullCalcOnLoad="1"/></workbook>',
-      'xl/_rels/workbook.xml.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>',
-      'xl/worksheets/sheet1.xml':detailSheet,
-      'xl/worksheets/sheet2.xml':summarySheet
-    };
+  function buildXlsx(rows,start,end){
+    var headers=['Data','Collaboratore','Sessione','Ora','Partenza','Arrivo','Km tratta','EUR/km','Rimborso tratta','Note'];
+    var detail=[rowXml(1,headers.map(function(h,i){return cell(1,i+1,h);})),];
+    var totalKm=0,totalRimb=0;
+    rows.forEach(function(r,idx){var rr=idx+2;totalKm+=Number(r.km||0);totalRimb+=Number(r.km||0)*Number(r.rate||0);detail.push(rowXml(rr,[cell(rr,1,r.data),cell(rr,2,r.collaboratore),cell(rr,3,r.sessione),cell(rr,4,r.ora),cell(rr,5,r.partenza),cell(rr,6,r.arrivo),cell(rr,7,Number(r.km||0)),cell(rr,8,Number(r.rate||0)),fcell(rr,9,'G'+rr+'*H'+rr,Number(r.km||0)*Number(r.rate||0)),cell(rr,10,r.note)]));});
+    var lastData=rows.length+1, totalRow=rows.length+3; if(lastData<2) lastData=2;
+    detail.push(rowXml(totalRow,[cell(totalRow,1,'TOTALE'),cell(totalRow,2,''),cell(totalRow,3,''),cell(totalRow,4,''),cell(totalRow,5,''),cell(totalRow,6,''),fcell(totalRow,7,'SUM(G2:G'+lastData+')',totalKm),cell(totalRow,8,''),fcell(totalRow,9,'SUM(I2:I'+lastData+')',totalRimb),cell(totalRow,10,'')]));
+    var cols='<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="3" width="16" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/><col min="5" max="6" width="26" customWidth="1"/><col min="7" max="9" width="15" customWidth="1"/><col min="10" max="10" width="42" customWidth="1"/></cols>';
+    var detailSheet=sheetXml(detail,cols);
+    var people=Array.from(new Set(rows.map(function(r){return r.collaboratore;}))).sort(function(a,b){return a.localeCompare(b,'it');});
+    var sum=[rowXml(1,[cell(1,1,'Periodo'),cell(1,2,start+' - '+end)]),rowXml(2,[cell(2,1,'Collaboratore'),cell(2,2,'Km totali'),cell(2,3,'Rimborso totale'),cell(2,4,'Tratte con km')])];
+    var dataEnd=rows.length+1; if(dataEnd<2) dataEnd=2;
+    people.forEach(function(p,i){var rr=i+3, km=rows.filter(function(r){return r.collaboratore===p;}).reduce(function(s,r){return s+Number(r.km||0);},0), rim=rows.filter(function(r){return r.collaboratore===p;}).reduce(function(s,r){return s+Number(r.km||0)*Number(r.rate||0);},0), n=rows.filter(function(r){return r.collaboratore===p&&Number(r.km||0)>0;}).length;sum.push(rowXml(rr,[cell(rr,1,p),fcell(rr,2,"SUMIFS('Dettaglio KM'!$G$2:$G$"+dataEnd+",'Dettaglio KM'!$B$2:$B$"+dataEnd+",A"+rr,km),fcell(rr,3,"SUMIFS('Dettaglio KM'!$I$2:$I$"+dataEnd+",'Dettaglio KM'!$B$2:$B$"+dataEnd+",A"+rr,rim),fcell(rr,4,"COUNTIFS('Dettaglio KM'!$B$2:$B$"+dataEnd+",A"+rr+",'Dettaglio KM'!$G$2:$G$"+dataEnd+",\">0\")",n)]));});
+    var sr=people.length+4, sumEnd=people.length+2; if(sumEnd<3) sumEnd=3;
+    sum.push(rowXml(sr,[cell(sr,1,'TOTALE'),fcell(sr,2,'SUM(B3:B'+sumEnd+')',totalKm),fcell(sr,3,'SUM(C3:C'+sumEnd+')',totalRimb),fcell(sr,4,'SUM(D3:D'+sumEnd+')',rows.filter(function(r){return Number(r.km||0)>0;}).length)]));
+    var summarySheet=sheetXml(sum,'<cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="4" width="18" customWidth="1"/></cols>');
+    var files={'[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>','_rels/.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>','xl/workbook.xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Dettaglio KM" sheetId="1" r:id="rId1"/><sheet name="Riepilogo" sheetId="2" r:id="rId2"/></sheets><calcPr calcMode="auto" fullCalcOnLoad="1"/></workbook>','xl/_rels/workbook.xml.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>','xl/worksheets/sheet1.xml':detailSheet,'xl/worksheets/sheet2.xml':summarySheet};
     return new Blob([zipStore(files)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   }
-  function crc32(bytes){const table=crc32.table||(crc32.table=(()=>{let t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})());let c=0xffffffff;for(let i=0;i<bytes.length;i++)c=table[(c^bytes[i])&255]^(c>>>8);return (c^0xffffffff)>>>0;}
+  function crc32(bytes){var table=crc32.table||(crc32.table=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})());var c=0xffffffff;for(var i=0;i<bytes.length;i++)c=table[(c^bytes[i])&255]^(c>>>8);return (c^0xffffffff)>>>0;}
   function pushU16(a,n){a.push(n&255,(n>>>8)&255);}function pushU32(a,n){a.push(n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255);}function dosDate(d){return ((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();}function dosTime(d){return (d.getHours()<<11)|(d.getMinutes()<<5)|(Math.floor(d.getSeconds()/2));}
-  function zipStore(files){const enc=new TextEncoder(),out=[],central=[];let offset=0;const now=new Date(),time=dosTime(now),date=dosDate(now);Object.entries(files).forEach(([name,xml])=>{const nameB=enc.encode(name),data=enc.encode(xml),crc=crc32(data);let local=[];pushU32(local,0x04034b50);pushU16(local,20);pushU16(local,0x0800);pushU16(local,0);pushU16(local,time);pushU16(local,date);pushU32(local,crc);pushU32(local,data.length);pushU32(local,data.length);pushU16(local,nameB.length);pushU16(local,0);out.push(...local,...nameB,...data);let c=[];pushU32(c,0x02014b50);pushU16(c,20);pushU16(c,20);pushU16(c,0x0800);pushU16(c,0);pushU16(c,time);pushU16(c,date);pushU32(c,crc);pushU32(c,data.length);pushU32(c,data.length);pushU16(c,nameB.length);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU32(c,0);pushU32(c,offset);central.push(...c,...nameB);offset+=local.length+nameB.length+data.length;});const centralOffset=out.length;out.push(...central);let end=[];pushU32(end,0x06054b50);pushU16(end,0);pushU16(end,0);pushU16(end,Object.keys(files).length);pushU16(end,Object.keys(files).length);pushU32(end,central.length);pushU32(end,centralOffset);pushU16(end,0);out.push(...end);return new Uint8Array(out);}
+  function zipStore(files){var enc=new TextEncoder(),out=[],central=[],offset=0,now=new Date(),time=dosTime(now),date=dosDate(now);Object.entries(files).forEach(function(ent){var name=ent[0],xml=ent[1],nameB=enc.encode(name),data=enc.encode(xml),crc=crc32(data),local=[];pushU32(local,0x04034b50);pushU16(local,20);pushU16(local,0x0800);pushU16(local,0);pushU16(local,time);pushU16(local,date);pushU32(local,crc);pushU32(local,data.length);pushU32(local,data.length);pushU16(local,nameB.length);pushU16(local,0);out.push.apply(out,local);out.push.apply(out,nameB);out.push.apply(out,data);var c=[];pushU32(c,0x02014b50);pushU16(c,20);pushU16(c,20);pushU16(c,0x0800);pushU16(c,0);pushU16(c,time);pushU16(c,date);pushU32(c,crc);pushU32(c,data.length);pushU32(c,data.length);pushU16(c,nameB.length);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU32(c,0);pushU32(c,offset);central.push.apply(central,c);central.push.apply(central,nameB);offset+=local.length+nameB.length+data.length;});var centralOffset=out.length;out.push.apply(out,central);var end=[];pushU32(end,0x06054b50);pushU16(end,0);pushU16(end,0);pushU16(end,Object.keys(files).length);pushU16(end,Object.keys(files).length);pushU32(end,central.length);pushU32(end,centralOffset);pushU16(end,0);out.push.apply(out,end);return new Uint8Array(out);}
 })();
 </script>
 
