@@ -1034,6 +1034,8 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   let pendingImage = null;
   let pendingClientAction = null;
   let pendingAiAction = null;
+  let pendingDeleteAction = null;
+  let pendingChoiceAction = null;
   let busy = false;
   let messages = [];
   let shellReady = false;
@@ -1217,8 +1219,17 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     if (saved.length) addMsg('system','Memoria AI aggiornata: ' + saved.length + ' nuova informazione.');
   }
   function isSaveCommand(text){ return /^\s*(salva|conferma|ok salva|si salva|sì salva|registra|inserisci)\s*\.?\s*$/i.test(String(text || '')); }
+  function isDeleteConfirmCommand(text){ return /^\s*(elimina|cancella|conferma elimina|ok elimina|si elimina|sì elimina|rimuovi)\s*\.?\s*$/i.test(String(text || '')); }
   function asListAction(a){ return a && a.type === 'batch_interventions' ? a.items : [a].filter(Boolean); }
   function actionNeedsWhen(a){ return asListAction(a).some(x => x && x.needsWhen); }
+  function choiceNumber(text){
+    const n = norm(text);
+    const m = n.match(/\b(\d{1,2})\b/);
+    if (m) return Math.max(1, Number(m[1]));
+    const words = {primo:1,prima:1,uno:1,una:1,secondo:2,seconda:2,due:2,terzo:3,terza:3,tre:3,quarto:4,quarta:4,quattro:4,quinto:5,quinta:5,cinque:5,sesto:6,sesta:6,sei:6,settimo:7,settima:7,sette:7,ottavo:8,ottava:8,otto:8,nono:9,nona:9,nove:9,decimo:10,decima:10,dieci:10};
+    for (const k in words) if (new RegExp('\\b' + k + '\\b').test(n)) return words[k];
+    return 0;
+  }
 
   function companyText(a){ return norm([a && a.nome, a && a.ragioneSociale, a && a.addr, a && a.comune, a && a.cap, a && a.provincia, a && a.piva, a && a.cf, a && a.sdi].filter(Boolean).join(' ')); }
   function companyBillingName(a){ return (a && (a.ragioneSociale || a.nome)) || 'Cliente'; }
@@ -1366,6 +1377,179 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     });
     return bestScore >= 0.55 ? best : null;
   }
+
+  function companyCandidatesFromText(text, limit){
+    const list = (typeof db !== 'undefined' && db && db.aziende) ? db.aziende : [];
+    const n = norm(text);
+    const spoken = norm(extractCompanyNameFromText(text));
+    const scored = [];
+    list.forEach(a => {
+      const fields = [a.nome, a.ragioneSociale, a.piva, a.cf, a.sdi, a.addr, a.comune].filter(Boolean).map(norm);
+      let score = 0;
+      fields.forEach(f => {
+        if (!f) return;
+        if (spoken && f === spoken) score = Math.max(score, 10);
+        if (spoken && (f.includes(spoken) || spoken.includes(f))) score = Math.max(score, 7 + Math.min(f.length, spoken.length) / 100);
+        if (n.includes(f)) score = Math.max(score, 6 + f.length / 100);
+      });
+      const an = companyText(a);
+      const tokens = (spoken || n).split(/\s+/).filter(t => t.length > 2);
+      const at = an.split(/\s+/).filter(t => t.length > 2);
+      if (tokens.length && at.length) {
+        const hits = at.filter(t => tokens.includes(t) || n.includes(t)).length;
+        score = Math.max(score, hits / Math.max(1, at.length) + (hits >= 2 ? 0.25 : 0));
+      }
+      if (score >= 0.55) scored.push({company:a, score:score});
+    });
+    scored.sort((a,b) => b.score - a.score || String(a.company.nome).localeCompare(String(b.company.nome),'it'));
+    return scored.slice(0, limit || 8);
+  }
+  function serviceName(p){ return p ? String(p.nome || '') : ''; }
+  function interventionServiceText(i){
+    return (i.servs || []).map(s => {
+      const p = (db.prest || []).find(x => String(x.id) === String(s.id));
+      return (p ? p.nome : '?') + ' x' + (s.qty || 1);
+    }).join(', ');
+  }
+  function interventionLine(i){
+    const az = (db.aziende || []).find(a => String(a.id) === String(i.allId)) || {nome:'Azienda'};
+    return fmt(i.data) + ' ore ' + (i.ora || '--:--') + ' - ' + az.nome + ' - ' + interventionServiceText(i) + ' - ' + userName(i.userId);
+  }
+  function serviceIdsFromText(text){
+    const list = (typeof db !== 'undefined' && db && db.prest) ? db.prest : [];
+    const n = norm(text);
+    const ids = new Set();
+    detectServicesFromText(text).forEach(s => {
+      ids.add(String(s.id));
+      const p0 = list.find(p => String(p.id) === String(s.id));
+      if (p0) list.filter(p => norm(p.nome) === norm(p0.nome)).forEach(p => ids.add(String(p.id)));
+    });
+    const syns = [
+      {rx:/cesar/, svc:/cesar/}, {rx:/fecondaz|inseminaz/, svc:/fecond|insemin/}, {rx:/ecograf/, svc:/ecograf/},
+      {rx:/metrit/, svc:/metrit/}, {rx:/mastit/, svc:/mastit/}, {rx:/visita\s+post\s*parto/, svc:/post.*parto|puerper/},
+      {rx:/dislocazione|abomaso|abomasale/, svc:/disloc|abomas/}
+    ];
+    syns.forEach(x => { if (x.rx.test(n)) list.filter(p => x.svc.test(norm(p.nome))).forEach(p => ids.add(String(p.id))); });
+    return Array.from(ids);
+  }
+  function duplicateServiceOptionsForAction(action){
+    const list = (typeof db !== 'undefined' && db && db.prest) ? db.prest : [];
+    const items = asListAction(action);
+    for (const a of items) {
+      for (let idx = 0; idx < (a.servs || []).length; idx++) {
+        const s = a.servs[idx];
+        const p = list.find(x => String(x.id) === String(s.id));
+        if (!p) continue;
+        const same = list.filter(x => norm(x.nome) === norm(p.nome));
+        if (same.length > 1) return {action:a, serviceIndex:idx, options:same};
+      }
+    }
+    return null;
+  }
+  function disambiguateCreateAction(text, action){
+    const items = asListAction(action);
+    for (const a of items) {
+      if (a.company) {
+        const same = (db.aziende || []).filter(x => norm(x.nome) === norm(a.company.nome));
+        if (same.length > 1) return {kind:'company_for_action', action:a, options:same};
+      } else {
+        const opts = companyCandidatesFromText(text, 6).map(x => x.company);
+        if (opts.length > 1) return {kind:'company_for_action', action:a, options:opts};
+      }
+    }
+    const dupSvc = duplicateServiceOptionsForAction(action);
+    if (dupSvc) return {kind:'service_for_action', action:dupSvc.action, serviceIndex:dupSvc.serviceIndex, options:dupSvc.options};
+    return null;
+  }
+  function looksDeleteCommand(text){
+    const n = norm(text);
+    return /(elimina|cancella|rimuovi|annulla)\s+(l\s*)?(intervento|prestazione|attivita|visita|cesar|fecond|insemin|ecograf|mastit|metrit|disloc|abomas|terapia)/.test(n)
+      || /(elimina|cancella|rimuovi|annulla)/.test(n) && /(oggi|ieri|da\s+|presso\s+|ore|alle|cesar|fecond|insemin|ecograf|mastit|metrit|intervento|prestazione)/.test(n);
+  }
+  function interventionCandidatesFromText(text){
+    const all = (typeof db !== 'undefined' && db && db.int) ? db.int : [];
+    const when = parseWhenText(text);
+    const company = findCompanyFromText(text);
+    const spokenCompany = norm(extractCompanyNameFromText(text));
+    const svcIds = serviceIdsFromText(text);
+    let arr = all.filter(i => !current || canManageIntervento(i));
+    if (when.date) arr = arr.filter(i => String(i.data) === String(when.date));
+    if (when.time) arr = arr.filter(i => String(i.ora || '').slice(0,5) === String(when.time).slice(0,5));
+    if (company) arr = arr.filter(i => String(i.allId) === String(company.id));
+    else if (spokenCompany) arr = arr.filter(i => {
+      const az = (db.aziende || []).find(a => String(a.id) === String(i.allId));
+      const ct = companyText(az || {});
+      return ct.includes(spokenCompany) || spokenCompany.split(/\s+/).filter(t => t.length > 2).some(t => ct.includes(t));
+    });
+    if (svcIds.length) arr = arr.filter(i => (i.servs || []).some(s => svcIds.includes(String(s.id))));
+    arr.sort((a,b) => String(b.data).localeCompare(String(a.data)) || String(b.ora || '').localeCompare(String(a.ora || '')) || Number(b.id) - Number(a.id));
+    if (/\b(ultimo|ultima|l ultimo|l ultima)\b/.test(norm(text)) && arr.length) arr = [arr[0]];
+    return arr.slice(0, 10);
+  }
+  function describeDeleteAction(a){
+    if (!a || !a.items || !a.items.length) return 'Non ho trovato interventi da eliminare. Dimmi azienda, prestazione e giorno.';
+    if (a.items.length > 1) return 'Ho trovato più interventi possibili. Scegli il numero:\n' + a.items.map((i,idx) => (idx+1) + ') ' + interventionLine(i)).join('\n');
+    return 'Ho trovato questo intervento:\n- ' + interventionLine(a.items[0]) + '\nScrivi ELIMINA per cancellarlo, oppure correggimi.';
+  }
+  function localDeleteFromText(text){
+    if (!looksDeleteCommand(text)) return null;
+    const candidates = interventionCandidatesFromText(text);
+    if (!candidates.length) return {type:'delete_intervention', items:[], none:true};
+    if (candidates.length === 1) return {type:'delete_intervention', items:candidates};
+    return {type:'choose_delete', options:candidates};
+  }
+  function savePendingDeleteAction(){
+    if (!pendingDeleteAction || !pendingDeleteAction.items || !pendingDeleteAction.items.length) { addMsg('bot','Non ho nessun intervento pronto da eliminare. Dimmi quale intervento vuoi cancellare.'); return false; }
+    const ids = pendingDeleteAction.items.map(i => String(i.id));
+    rvEnsureMeta();
+    ids.forEach(id => { db.deleted.int[String(id)] = Date.now(); });
+    const removed = db.int.filter(i => ids.includes(String(i.id)));
+    db.int = db.int.filter(i => !ids.includes(String(i.id)));
+    removed.forEach(i => appendAiMemory('Intervento eliminato: ' + interventionLine(i), 'intervento_eliminato'));
+    pendingDeleteAction = null;
+    pendingChoiceAction = null;
+    saveCloud();
+    if (typeof rStorico === 'function' && tab === 'storico') rStorico(); else if (typeof go === 'function') go('oggi');
+    addMsg('bot', removed.length === 1 ? 'Fatto. Ho eliminato l’intervento dal gestionale.' : 'Fatto. Ho eliminato ' + removed.length + ' interventi dal gestionale.');
+    return true;
+  }
+  function describeChoice(choice){
+    if (!choice) return '';
+    if (choice.kind === 'delete_intervention') return describeDeleteAction({type:'delete_intervention', items:choice.options || []});
+    if (choice.kind === 'company_for_action') return 'Ho trovato più clienti possibili. Scegli il numero:\n' + (choice.options || []).map((a,i) => (i+1) + ') ' + a.nome + (a.ragioneSociale && a.ragioneSociale !== a.nome ? ' - ' + a.ragioneSociale : '') + (a.addr ? ' - ' + a.addr : '')).join('\n');
+    if (choice.kind === 'service_for_action') return 'Ho trovato più prestazioni con lo stesso nome. Scegli il numero:\n' + (choice.options || []).map((p,i) => (i+1) + ') ' + p.nome + (p.cat ? ' - ' + p.cat : '') + (p.tipo ? ' - ' + p.tipo : '') + ' - ' + eur(Number(p.price || 0))).join('\n');
+    return '';
+  }
+  function handleChoiceAnswer(text){
+    if (!pendingChoiceAction) return false;
+    const n = choiceNumber(text);
+    const opts = pendingChoiceAction.options || [];
+    if (!n || n < 1 || n > opts.length) { addMsg('bot','Scegli un numero valido:\n' + describeChoice(pendingChoiceAction)); return true; }
+    const picked = opts[n-1];
+    if (pendingChoiceAction.kind === 'delete_intervention') {
+      pendingDeleteAction = {type:'delete_intervention', items:[picked]};
+      pendingChoiceAction = null;
+      addMsg('bot', describeDeleteAction(pendingDeleteAction));
+      return true;
+    }
+    if (pendingChoiceAction.kind === 'company_for_action') {
+      const a = pendingChoiceAction.action || pendingAiAction;
+      if (a) { a.company = picked; a.companyName = picked.nome; }
+      pendingChoiceAction = null;
+      addMsg('bot', describeAiAction(pendingAiAction || a));
+      return true;
+    }
+    if (pendingChoiceAction.kind === 'service_for_action') {
+      const a = pendingChoiceAction.action;
+      const idx = pendingChoiceAction.serviceIndex || 0;
+      if (a && a.servs && a.servs[idx]) { a.servs[idx].id = Number(picked.id); a.servs[idx].name = picked.nome; }
+      pendingChoiceAction = null;
+      addMsg('bot', describeAiAction(pendingAiAction || a));
+      return true;
+    }
+    pendingChoiceAction = null;
+    return true;
+  }
   function findService(svc){
     const list = (typeof db !== 'undefined' && db && db.prest) ? db.prest : [];
     if (svc && svc.id) {
@@ -1485,8 +1669,21 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     let sess = ['m','p','n'].includes(String(action.session || '').toLowerCase()) ? String(action.session).toLowerCase() : (when.session || defaultSession());
     return {type:'create_intervention', company:company || null, companyName: action.companyName || action.azienda || action.company || '', servs:servs, missing:missing, data:data, sess:sess, ora:ora, needsWhen: !(data && ora), note: String(action.note || '').slice(0,500)};
   }
+  function normalizeDeleteAction(action, sourceText){
+    if (!action) return null;
+    if (action.interventionId || action.id) {
+      const id = action.interventionId || action.id;
+      const i = (db.int || []).find(x => String(x.id) === String(id) && canManageIntervento(x));
+      if (i) return {type:'delete_intervention', items:[i]};
+    }
+    const candidates = interventionCandidatesFromText(sourceText || action.query || action.description || '');
+    if (!candidates.length) return {type:'delete_intervention', items:[], none:true};
+    if (candidates.length === 1) return {type:'delete_intervention', items:candidates};
+    return {type:'choose_delete', options:candidates};
+  }
   function normalizeAiAction(action, sourceText){
     if (!action) return null;
+    if (['delete_intervention','remove_intervention','cancel_intervention','delete_activity','remove_activity'].includes(String(action.type || ''))) return normalizeDeleteAction(action, sourceText);
     if (action.type === 'create_client' || action.type === 'create_customer' || action.type === 'add_client' || action.type === 'add_customer') return normalizeClientAction(action, sourceText);
     if (action.type === 'create_interventions' || action.type === 'create_intervention_batch' || action.type === 'batch_interventions') {
       const rawItems = Array.isArray(action.items) ? action.items : (Array.isArray(action.actions) ? action.actions : (Array.isArray(action.interventions) ? action.interventions : []));
@@ -1506,7 +1703,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     const items = asListAction(a);
     const lines = items.map((x,i) => (items.length > 1 ? (i+1) + ') ' : '') + actionSummaryLine(x));
     const missingCompany = items.find(x => !x.company && x.companyName);
-    if (missingCompany) return 'Ho capito:\n' + lines.join('\n') + '\nNon conosco l’azienda  + missingCompany.companyName + . Scrivi CREA CLIENTE per crearla, oppure dammi ragione sociale e indirizzo.';
+    if (missingCompany) return 'Ho capito:\n' + lines.join('\n') + '\nNon conosco l’azienda "' + (missingCompany.companyName || '') + '". Scrivi CREA CLIENTE per crearla, oppure dammi ragione sociale e indirizzo.';
     if (actionNeedsWhen(a)) return 'Ho capito:\n' + lines.join('\n') + '\nQuando lo registro? Scrivi ADESSO oppure data e ora, esempio: oggi 14:30 / ieri 09:00.';
     return 'Ho capito:\n' + lines.join('\n') + '\nScrivi SALVA per registrare nel gestionale, oppure correggimi.';
   }
@@ -1516,7 +1713,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     if (actionNeedsWhen(pendingAiAction)) { addMsg('bot','Prima mi serve data e ora. Scrivi ADESSO oppure una data e ora, esempio: oggi 14:30 / ieri 09:00.'); return false; }
     const items = asListAction(pendingAiAction);
     const badCompany = items.find(a => !a.company);
-    if (badCompany) { addMsg('bot','Non salvo ancora: non conosco l’azienda  + (badCompany.companyName || ) + . Scrivi CREA CLIENTE per crearla e poi completare il salvataggio, oppure dimmi il nome esatto come è nel gestionale.'); return false; }
+    if (badCompany) { addMsg('bot','Non salvo ancora: non conosco l’azienda "' + (badCompany.companyName || '') + '". Scrivi CREA CLIENTE per crearla e poi completare il salvataggio, oppure dimmi il nome esatto come è nel gestionale.'); return false; }
     const badServ = items.find(a => !a.servs.length || a.missing.length);
     if (badServ) { addMsg('bot','Non salvo ancora: non ho riconosciuto queste prestazioni: ' + (badServ.missing.join(', ') || 'nessuna prestazione valida') + '. Dimmi il nome come nel listino.'); return false; }
     let saved = 0;
@@ -1548,9 +1745,20 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     return {type:'create_intervention', company:company || null, companyName:company ? company.nome : spokenCompany, servs:servs, missing:[], data:when.date || '', ora:when.time || '', sess:when.session || defaultSession(), needsWhen:!(when.date && when.time), note:'Comando AI: ' + String(text).slice(0,220)};
   }
   function tryLocalOperationalAction(text){
+    const del = localDeleteFromText(text);
+    if (del) {
+      pendingAiAction = null; pendingClientAction = null;
+      if (del.type === 'choose_delete') { pendingChoiceAction = {kind:'delete_intervention', options:del.options}; addMsg('bot', describeChoice(pendingChoiceAction)); return true; }
+      pendingDeleteAction = del;
+      addMsg('bot', describeDeleteAction(pendingDeleteAction));
+      return true;
+    }
     const a = localActionFromText(text);
     if (!a) return false;
+    pendingDeleteAction = null;
     pendingAiAction = a;
+    const choice = disambiguateCreateAction(text, pendingAiAction);
+    if (choice) { pendingChoiceAction = choice; addMsg('bot', describeChoice(choice)); return true; }
     addMsg('bot', describeAiAction(pendingAiAction));
     return true;
   }
@@ -1573,24 +1781,51 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     try {
       if (typeof db !== 'undefined' && db) {
         const n = norm(inputText || '');
-        const aziendeAll = (db.aziende || []).map(a => ({id:a.id, nome:a.nome, ragioneSociale:a.ragioneSociale || '', addr:a.addr || '', comune:a.comune || '', cap:a.cap || '', provincia:a.provincia || '', piva:a.piva || '', cf:a.cf || '', sdi:a.sdi || ''})).filter(a => a.nome);
-        const prestazioniAll = (db.prest || []).map(p => ({id:p.id, nome:p.nome, cat:p.cat || '', tipo:p.tipo || 'Prestazione'})).filter(p => p.nome);
-        const aziendeHit = aziendeAll.filter(a => n && norm(a.nome).split(/\s+/).filter(t=>t.length>2).some(t => n.includes(t))).slice(0,80);
-        const prestHit = prestazioniAll.filter(p => n && norm(p.nome).split(/\s+/).filter(t=>t.length>3).some(t => n.includes(t))).slice(0,100);
-        ctx.counts = {aziende:aziendeAll.length, interventi:(db.int||[]).length, prestazioni:prestazioniAll.length, memoria_ai:(db.cfg && db.cfg.aiMemory ? db.cfg.aiMemory.length : 0)};
-        ctx.aziende = (aziendeHit.length ? aziendeHit : aziendeAll).slice(0,350);
-        ctx.prestazioni = (prestHit.length ? prestHit : prestazioniAll).slice(0,500);
-        ctx.aziendeSample = aziendeAll.slice(0,25).map(a => a.nome).filter(Boolean);
-        ctx.aiMemoryRecent = ((db.cfg && db.cfg.aiMemory) || []).filter(m => !m.userId || !current || m.userId === current.id || m.kind === 'istruzione').slice(0,35);
+        const aziendeAll = (db.aziende || []).map(a => ({
+          id:a.id, nome:a.nome, ragioneSociale:a.ragioneSociale || '', addr:a.addr || a.indirizzo || '', comune:a.comune || '', cap:a.cap || '', provincia:a.provincia || '', piva:a.piva || '', cf:a.cf || '', sdi:a.sdi || '', tel:a.tel || '', email:a.email || '', km:a.km || 0
+        })).filter(a => a.nome);
+        const prestazioniAll = (db.prest || []).map(p => ({id:p.id, nome:p.nome, cat:p.cat || '', tipo:p.tipo || 'Prestazione', price:Number(p.price || p.prezzo || 0)})).filter(p => p.nome);
+        const usersAll = (typeof workers === 'function' ? workers() : []).map(u => ({id:u.id, name:u.name, role:u.role || ''})).filter(u => u.name);
+        const aziendeHit = aziendeAll.filter(a => n && [a.nome,a.ragioneSociale,a.comune,a.piva,a.cf,a.sdi].some(v => {
+          const nv = norm(v || '');
+          if (!nv) return false;
+          return nv.split(/\s+/).filter(t=>t.length>2).some(t => n.includes(t));
+        })).slice(0,120);
+        const prestHit = prestazioniAll.filter(p => n && norm(p.nome).split(/\s+/).filter(t=>t.length>3).some(t => n.includes(t))).slice(0,120);
+        const mapIntervento = i => {
+          const az = (db.aziende || []).find(a => String(a.id) === String(i.allId)) || {};
+          return {
+            id:i.id, data:i.data, ora:i.ora || '', sessione:i.sess || '', userId:i.userId, userName:typeof userName === 'function' ? userName(i.userId) : '', aziendaId:i.allId, azienda:az.nome || '', tot:Number(i.tot || 0), fatt:!!i.fatt, note:i.note || '',
+            prestazioni:(i.servs || []).map(s => { const p = (db.prest || []).find(x => String(x.id) === String(s.id)) || {}; let pr=0; try { pr = typeof price === 'function' ? Number(price(s.id, i.allId) || 0) : Number(p.price || 0); } catch(e){ pr = Number(p.price || 0); } return {id:s.id, nome:p.nome || '', qty:Number(s.qty || 1), price:pr, total:pr*Number(s.qty || 1)}; })
+          };
+        };
+        const visInts = (db.int || []).filter(i => !current || current.role === 'company' || i.userId === current.id || (typeof canManageIntervento === 'function' && canManageIntervento(i)));
+        const interventiAll = visInts.slice().sort((a,b) => String(b.data).localeCompare(String(a.data)) || String(b.ora || '').localeCompare(String(a.ora || ''))).slice(0,1800).map(mapIntervento);
+        const interventiRecenti = interventiAll.slice(0,180);
+        const fattureAll = (db.fatture || []).slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).slice(0,1200).map(f => {
+          const az = (db.aziende || []).find(a => String(a.id) === String(f.allId || f.aziendaId || f.companyId)) || {};
+          return {id:f.id, numero:f.numero || f.num || '', data:f.data || '', aziendaId:f.allId || f.aziendaId || f.companyId, azienda:az.nome || f.azienda || '', tot:Number(f.tot || f.total || 0), imponibile:Number(f.imponibile || 0), iva:Number(f.iva || 0), pagata:!!f.pagata, scadenza:f.scadenza || '', note:f.note || ''};
+        });
+        ctx.counts = {aziende:aziendeAll.length, interventi:(db.int||[]).length, prestazioni:prestazioniAll.length, fatture:(db.fatture||[]).length, memoria_ai:(db.cfg && db.cfg.aiMemory ? db.cfg.aiMemory.length : 0)};
+        ctx.users = usersAll;
+        ctx.aziende = (aziendeHit.length ? aziendeHit : aziendeAll).slice(0,900);
+        ctx.prestazioni = (prestHit.length ? prestHit : prestazioniAll).slice(0,900);
+        ctx.interventi = interventiAll;
+        ctx.interventiRecenti = interventiRecenti;
+        ctx.fatture = fattureAll;
+        ctx.km = [];
+        ctx.config = {iva:db.cfg && db.cfg.iva, kmRates:db.cfg && db.cfg.kmRates ? db.cfg.kmRates : {}};
+        ctx.aziendeSample = aziendeAll.slice(0,35).map(a => a.nome).filter(Boolean);
+        ctx.aiMemoryRecent = ((db.cfg && db.cfg.aiMemory) || []).filter(m => !m.userId || !current || m.userId === current.id || m.kind === 'istruzione').slice(0,80);
       }
-    } catch(e){}
+    } catch(e){ ctx.contextError = String(e && e.message ? e.message : e); }
     return ctx;
   }
 
 
   function systemPrompt(){
     const s = getSettings();
-    return 'Sei Rural Vet AI, assistente personale del profilo che sta usando il gestionale Rural Vet. Parla come ChatGPT: naturale, breve, intelligente e interattivo. Se il profilo operativo ti dice interventi/prestazioni fatte, devi aiutare a registrarli nel gestionale: estrai azienda, prestazioni, quantità, data e ora; se data/ora mancano chiedi se registrare ADESSO oppure in altro giorno/ora. Se l’azienda non esiste, aiutalo a creare un nuovo cliente/azienda prima di salvare l’intervento. Non dire fatto prima della conferma SALVA. Per casi clinici: diagnosi probabile, massimo 2 differenziali e 2-3 domande mirate. Risposte massimo 5-7 righe. Stile utente: ' + s.style + '\nAppunti/protocolli interni da usare quando rilevanti:\n' + s.knowledge;
+    return 'Sei Rural Vet AI, assistente personale del profilo che sta usando il gestionale Rural Vet. Parla come ChatGPT: naturale, breve, intelligente e interattivo. Se il profilo operativo ti dice interventi/prestazioni fatte, devi aiutare a registrarli nel gestionale: estrai azienda, prestazioni, quantità, data e ora; se data/ora mancano chiedi se registrare ADESSO oppure in altro giorno/ora. Puoi anche eliminare interventi già registrati: individua l’intervento, proponi le alternative se ce ne sono più di una, e non eliminare prima della conferma ELIMINA. Se azienda o prestazione hanno nomi uguali/simili, chiedi sempre quale alternativa scegliere e non scegliere in silenzio. Se l’azienda non esiste, aiutalo a creare un nuovo cliente/azienda prima di salvare l’intervento. Non dire fatto prima della conferma SALVA o ELIMINA. Per casi clinici: diagnosi probabile, massimo 2 differenziali e 2-3 domande mirate. Risposte massimo 5-7 righe. Stile utente: ' + s.style + '\nAppunti/protocolli interni da usare quando rilevanti:\n' + s.knowledge;
   }
 
   async function callBackend(text){
@@ -1615,17 +1850,25 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     const actionCandidate = data.action || (Array.isArray(data.actions) && data.actions.length ? {type:'create_interventions', items:data.actions} : null);
     if (actionCandidate) {
       const normAction = normalizeAiAction(actionCandidate, text);
-      if (normAction && normAction.type === 'create_client') { pendingClientAction = normAction; pendingAiAction = null; }
-      else { pendingAiAction = normAction; pendingClientAction = null; }
+      if (normAction && normAction.type === 'create_client') { pendingClientAction = normAction; pendingAiAction = null; pendingDeleteAction = null; pendingChoiceAction = null; }
+      else if (normAction && normAction.type === 'delete_intervention') { pendingDeleteAction = normAction; pendingAiAction = null; pendingClientAction = null; pendingChoiceAction = null; }
+      else if (normAction && normAction.type === 'choose_delete') { pendingChoiceAction = {kind:'delete_intervention', options:normAction.options || []}; pendingDeleteAction = null; pendingAiAction = null; pendingClientAction = null; }
+      else { pendingAiAction = normAction; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; const choice = normAction ? disambiguateCreateAction(text, normAction) : null; if (choice) pendingChoiceAction = choice; }
     } else if (!/^(salva|conferma|ok salva|si salva|sì salva|registra)$/i.test(String(text || '').trim())) {
       pendingAiAction = null;
       pendingClientAction = null;
+      pendingDeleteAction = null;
+      pendingChoiceAction = null;
     }
     let reply = data.reply || data.answer || data.message || (data.output && String(data.output)) || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content);
     if (pendingClientAction && !reply) reply = describeClientAction(pendingClientAction);
     if (pendingAiAction && !reply) reply = describeAiAction(pendingAiAction);
+    if (pendingDeleteAction && !reply) reply = describeDeleteAction(pendingDeleteAction);
+    if (pendingChoiceAction && !reply) reply = describeChoice(pendingChoiceAction);
     if (pendingClientAction && reply && !/salva|confermi|conferma|crea/i.test(reply)) reply += '\n' + describeClientAction(pendingClientAction);
     if (pendingAiAction && reply && !/salva|confermi|conferma|registr|crea cliente/i.test(reply)) reply += '\n' + describeAiAction(pendingAiAction);
+    if (pendingDeleteAction && reply && !/elimina|cancella|scegli|numero/i.test(reply)) reply += '\n' + describeDeleteAction(pendingDeleteAction);
+    if (pendingChoiceAction && reply && !/scegli|numero|alternative/i.test(reply)) reply += '\n' + describeChoice(pendingChoiceAction);
     if (!reply) throw new Error('Risposta AI vuota o formato non riconosciuto');
     return String(reply).trim();
   }
@@ -1881,12 +2124,15 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   }
   async function smartReply(text){
     const s = getSettings();
-    let backendErr = null;
-    if (s.endpoint) {
-      try { typingText('Chiamo il backend AI...'); return await callBackend(text); }
-      catch(e) { backendErr = e; }
+    if (!s.endpoint) {
+      return 'Rural Vet AI non è ancora collegata al backend. Inserisci l’endpoint in Appunti > Endpoint backend AI. Non rispondo con il motore locale per evitare risposte sbagliate.';
     }
-    return await basicReply(text, backendErr);
+    try {
+      typingText('Consulto backend e dati gestionali...');
+      return await callBackend(text);
+    } catch(e) {
+      return 'Backend AI non disponibile: non rispondo a caso. Controlla Render, endpoint e API key. Dettaglio: ' + (e && e.message ? e.message : e);
+    }
   }
 
   function readFileData(file){ return new Promise((resolve,reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result || '')); r.onerror = () => reject(r.error || new Error('File non leggibile')); r.readAsDataURL(file); }); }
@@ -2039,12 +2285,14 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     addMsg('user', label + (pendingImage ? '\n[Foto allegata: ' + pendingImage.name + ']' : ''));
     if (input) { input.value = ''; autoGrow(input); }
     if (/^\s*(fine|stop|basta|chiudi conversazione|termina)\s*\.?$/i.test(text)) { stopVoiceLoop('Conversazione vocale conclusa.'); window.rvAiRemoveImage(); return; }
+    if (pendingChoiceAction && handleChoiceAnswer(text)) { window.rvAiRemoveImage(); return; }
     if (pendingAiAction && actionNeedsWhen(pendingAiAction) && handlePendingWhenAnswer(text)) { window.rvAiRemoveImage(); return; }
+    if (isDeleteConfirmCommand(text) && pendingDeleteAction) { window.rvAiRemoveImage(); savePendingDeleteAction(); return; }
     if (isSaveCommand(text)) { window.rvAiRemoveImage(); if (pendingClientAction) savePendingClientAction(); else savePendingAiAction(); return; }
     if (maybeLearn(text)) { window.rvAiRemoveImage(); return; }
     if (handleClientCreation(text)) { window.rvAiRemoveImage(); return; }
-    if (!pendingImage && tryLocalOperationalAction(label)) { window.rvAiRemoveImage(); return; }
-    setBusy(true); typing(true, 'Ragiono sul caso...');
+    // Backend-first: i nuovi comandi passano sempre dal backend AI prima di rispondere.
+    setBusy(true); typing(true, 'Consulto Rural Vet AI...');
     try { const reply = await smartReply(label); typing(false); addMsg('bot', reply); }
     catch(e) { typing(false); addMsg('bot','Non riesco a completare la risposta. Dimmi il caso in una riga con animale, sintomo, temperatura e durata. Dettaglio tecnico: ' + (e && e.message ? e.message : e)); }
     finally { window.rvAiRemoveImage(); setBusy(false); }
