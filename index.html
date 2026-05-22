@@ -1052,9 +1052,17 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   function addUnique(arr, v){ v = String(v || '').trim(); if (v && arr.indexOf(v) < 0) arr.push(v); }
   function uniq(arr){ const seen = new Set(); return arr.filter(x => { const k = String((x.url || x.title || x.snippet || '')).toLowerCase(); if (!k || seen.has(k)) return false; seen.add(k); return true; }); }
 
+  const RV_DEFAULT_AI_ENDPOINT = (window.RV_AI_ENDPOINT || 'https://rural-vet-ai.onrender.com/api/vet-ai-chat');
+  function normalizeEndpoint(value){
+    value = String(value || '').trim();
+    if (!value || value === '/api/vet-ai-chat') value = RV_DEFAULT_AI_ENDPOINT;
+    if (/^https?:\/\/[^\s]+\.onrender\.com\/?$/i.test(value)) value = value.replace(/\/?$/, '/api/vet-ai-chat');
+    return value;
+  }
+
   function defaultSettings(){
     return {
-      endpoint:'',
+      endpoint:RV_DEFAULT_AI_ENDPOINT,
       useWeb:true,
       style:'Parla come ChatGPT: naturale, breve, interattivo. Dai una diagnosi probabile quando possibile, massimo 5-7 righe. Fai massimo 3 domande mirate alla volta. Niente testi lunghi salvo richiesta.',
       knowledge:'Focus: veterinaria buiatra, bovini da latte e da carne, vitelli, riproduzione, mastiti, metaboliche, zoppie, respiratorio, enteriti neonatali, emergenze di stalla. Usa questi appunti come protocolli interni, ma non sostituire il giudizio clinico del veterinario responsabile.'
@@ -1067,12 +1075,12 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     if (!out.style || /Triage\/urgenza|3-5 azioni|testi lunghi|Domande mirate|checklist lunghe/i.test(out.style)) out.style = d.style;
     if (!out.knowledge) out.knowledge = d.knowledge;
     if (out.useWeb === undefined) out.useWeb = true;
-    if (!out.endpoint || out.endpoint === '/api/vet-ai-chat') out.endpoint = '';
+    out.endpoint = normalizeEndpoint(out.endpoint);
     return out;
   }
   function saveSettings(next){
     const cfg = Object.assign({}, getSettings(), next || {});
-    if (!cfg.endpoint || cfg.endpoint === '/api/vet-ai-chat') cfg.endpoint = '';
+    cfg.endpoint = normalizeEndpoint(cfg.endpoint);
     localWrite(SETTINGS_KEY, cfg);
     try {
       if (typeof db !== 'undefined' && db) {
@@ -1830,6 +1838,8 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
 
   async function callBackend(text){
     const s = getSettings();
+    s.endpoint = normalizeEndpoint(s.endpoint);
+    saveSettings({endpoint:s.endpoint});
     if (!s.endpoint) throw new Error('Nessun endpoint AI configurato');
     const payload = {
       system:systemPrompt(),
@@ -2124,6 +2134,8 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   }
   async function smartReply(text){
     const s = getSettings();
+    s.endpoint = normalizeEndpoint(s.endpoint);
+    saveSettings({endpoint:s.endpoint});
     if (!s.endpoint) {
       return 'Rural Vet AI non è ancora collegata al backend. Inserisci l’endpoint in Appunti > Endpoint backend AI. Non rispondo con il motore locale per evitare risposte sbagliate.';
     }
@@ -2151,7 +2163,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     });
   }
 
-  function backendBase(endpoint){ return String(endpoint || '').replace(/\/api\/vet-ai-chat\/?$/,''); }
+  function backendBase(endpoint){ return normalizeEndpoint(endpoint).replace(/\/api\/vet-ai-chat\/?$/,''); }
   function warmBackend(){
     const ep = getSettings().endpoint;
     if (!ep) return Promise.resolve(false);
