@@ -1719,7 +1719,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       if (when.date) a.data = when.date;
       if (when.time) a.ora = when.time;
       if (when.session) a.sess = when.session;
-      a.needsWhen = !(a.data && a.ora);
+      a.needsWhen = !(a.data && (a.ora || a.sess));
     });
   }
   function normalizeSingleAction(action, sourceText){
@@ -1740,7 +1740,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     let data = hasActionDate ? String(action.date) : (when.date || '');
     let ora = hasActionTime ? String(action.time).slice(0,5) : (when.time || '');
     let sess = ['m','p','n'].includes(String(action.session || '').toLowerCase()) ? String(action.session).toLowerCase() : (when.session || defaultSession());
-    return {type:'create_intervention', company:company || null, companyName: action.companyName || action.azienda || action.company || '', servs:servs, missing:missing, data:data, sess:sess, ora:ora, needsWhen: !(data && ora), note: String(action.note || '').slice(0,500)};
+    return {type:'create_intervention', company:company || null, companyName: action.companyName || action.azienda || action.company || '', servs:servs, missing:missing, data:data, sess:sess, ora:ora, needsWhen: !(data && (ora || sess)), note: String(action.note || '').slice(0,500)};
   }
   function normalizeDeleteAction(action, sourceText){
     if (!action) return null;
@@ -2086,7 +2086,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     const spokenCompany = company ? company.nome : extractCompanyNameFromText(text);
     if (!company && !spokenCompany && !servs.length) return null;
     const when = parseWhenText(text);
-    return {type:'create_intervention', company:company || null, companyName:company ? company.nome : spokenCompany, servs:servs, missing:[], data:when.date || '', ora:when.time || '', sess:when.session || defaultSession(), needsWhen:!(when.date && when.time), note:'Comando AI: ' + String(text).slice(0,220)};
+    return {type:'create_intervention', company:company || null, companyName:company ? company.nome : spokenCompany, servs:servs, missing:[], data:when.date || '', ora:when.time || '', sess:when.session || defaultSession(), needsWhen:!(when.date && (when.time || when.session)), note:'Comando AI: ' + String(text).slice(0,220)};
   }
   function tryLocalOperationalAction(text){
     const del = localDeleteFromText(text);
@@ -2831,125 +2831,45 @@ ${s.knowledge || ''}`;
     if (refused.length) addMsg('system','Non importati in modalità base: ' + refused.join(', ') + '. Copia il testo negli appunti AI oppure colleghiamo un backend per PDF/DOCX.');
   };
 
-  function rvAiIsKmQuery(text){
-    var n=norm(text||'');
-    return /(\bkm\b|chilometr|kilometr|spostament|tratt|strada|rimbors)/.test(n);
+  function rvAiParseKmExcelPeriod(text){
+    const raw = String(text || '');
+    const n = norm(raw);
+    const now = new Date();
+    function isoD(d){ return dateIsoFrom(d); }
+    function startWeek(d){ const x = new Date(d); const day = (x.getDay()+6)%7; x.setDate(x.getDate()-day); return x; }
+    let start='', end='', label='';
+    const matches = [...raw.matchAll(/\b(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\b/g)];
+    function conv(m){ let y=m[3]?Number(m[3]):now.getFullYear(); if(y<100)y+=2000; return y+'-'+pad2(m[2])+'-'+pad2(m[1]); }
+    if(matches.length>=2){ start=conv(matches[0]); end=conv(matches[1]); label=start+' - '+end; }
+    else if(matches.length===1){ start=end=conv(matches[0]); label=start; }
+    if(!start && /da inizio anno|inizio anno|\bytd\b/.test(n)){ start=now.getFullYear()+'-01-01'; end=isoD(now); label='da inizio anno'; }
+    else if(!start && /ieri/.test(n)){ const d=new Date(now); d.setDate(d.getDate()-1); start=end=isoD(d); label='ieri'; }
+    else if(!start && /oggi/.test(n)){ start=end=isoD(now); label='oggi'; }
+    else if(!start && /settimana scorsa/.test(n)){ const s=startWeek(now); s.setDate(s.getDate()-7); const e=new Date(s); e.setDate(e.getDate()+6); start=isoD(s); end=isoD(e); label='settimana scorsa'; }
+    else if(!start && /questa settimana/.test(n)){ const s=startWeek(now); start=isoD(s); end=isoD(now); label='questa settimana'; }
+    else if(!start && /mese scorso/.test(n)){ const y=now.getMonth()===0?now.getFullYear()-1:now.getFullYear(); const m=now.getMonth()===0?11:now.getMonth()-1; start=isoD(new Date(y,m,1)); end=isoD(new Date(y,m+1,0)); label='mese scorso'; }
+    else if(!start && /ultimo mese|ultimi 30 giorni/.test(n)){ const s=new Date(now); s.setDate(s.getDate()-30); start=isoD(s); end=isoD(now); label='ultimo mese'; }
+    else if(!start && /questo mese/.test(n)){ start=isoD(new Date(now.getFullYear(),now.getMonth(),1)); end=isoD(now); label='questo mese'; }
+    if(!start){ start=end=isoD(now); label='oggi'; }
+    if(start>end){ const t=start; start=end; end=t; }
+    return {start,end,label};
   }
-  function rvAiWantsKmExcel(text){
-    var n=norm(text||'');
-    return /(excel|xlsx|scaric|download|esport|file|resoconto|riepilogo)/.test(n) && rvAiIsKmQuery(text);
-  }
-  function rvAiIsoFromParts(d,m,y){
-    var now=new Date(), yy=y?Number(y):now.getFullYear();
-    if(yy<100) yy+=2000;
-    var dd=String(Number(d)).padStart(2,'0'), mm=String(Number(m)).padStart(2,'0');
-    return yy+'-'+mm+'-'+dd;
-  }
-  function rvAiMonthRange(offset){
-    var base=new Date(iso()+'T00:00:00');
-    var y=base.getFullYear(), m=base.getMonth()+offset;
-    var first=new Date(y,m,1), last=new Date(y,m+1,0);
-    return {start:first.toISOString().slice(0,10), end:last.toISOString().slice(0,10)};
-  }
-  function rvAiWeekRange(offset){
-    var d=new Date(iso()+'T00:00:00');
-    var day=d.getDay()||7;
-    d.setDate(d.getDate()-day+1+(offset*7));
-    var start=new Date(d), end=new Date(d); end.setDate(start.getDate()+6);
-    var today=new Date(iso()+'T00:00:00'); if(offset===0 && end>today) end=today;
-    return {start:start.toISOString().slice(0,10), end:end.toISOString().slice(0,10)};
-  }
-  function rvAiDateRangeFromText(text){
-    var raw=String(text||''), n=norm(raw), today=iso();
-    var m;
-    m=raw.match(/(?:dal|da)\s*(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\s*(?:al|a|fino al|fino a)\s*(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/i);
-    if(m) return {start:rvAiIsoFromParts(m[1],m[2],m[3]||m[6]), end:rvAiIsoFromParts(m[4],m[5],m[6]||m[3])};
-    m=raw.match(/(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/);
-    if(m){var one=rvAiIsoFromParts(m[1],m[2],m[3]); return {start:one,end:one};}
-    if(/ieri/.test(n)){var d=new Date(today+'T00:00:00');d.setDate(d.getDate()-1);var x=d.toISOString().slice(0,10);return {start:x,end:x};}
-    if(/oggi/.test(n)) return {start:today,end:today};
-    if(/settimana\s+scorsa/.test(n)) return rvAiWeekRange(-1);
-    if(/questa\s+settimana|settimana\s+corrente/.test(n)) return rvAiWeekRange(0);
-    if(/mese\s+scorso/.test(n)) return rvAiMonthRange(-1);
-    if(/ultimo\s+mese|ultimi\s+30\s+giorni/.test(n)){var d=new Date(today+'T00:00:00');d.setDate(d.getDate()-30);return {start:d.toISOString().slice(0,10),end:today};}
-    if(/questo\s+mese|mese\s+corrente/.test(n)) return rvAiMonthRange(0);
-    if(/inizio\s+anno|da\s+gennaio|ytd/.test(n)){return {start:(new Date().getFullYear())+'-01-01',end:today};}
-    var mesi={gennaio:0,febbraio:1,marzo:2,aprile:3,maggio:4,giugno:5,luglio:6,agosto:7,settembre:8,ottobre:9,novembre:10,dicembre:11};
-    for(var k in mesi){if(n.indexOf(k)>=0){var y=(new Date()).getFullYear();var first=new Date(y,mesi[k],1),last=new Date(y,mesi[k]+1,0);return {start:first.toISOString().slice(0,10),end:last.toISOString().slice(0,10)};}}
-    return {start:today,end:today};
-  }
-  async function rvAiBuildKmRows(start,end){
-    var rows=[];
-    if(typeof db === 'undefined' || !db) return rows;
-    var users=[];
+  async function rvAiTryKmExcel(text){
+    const n = norm(text || '');
+    const wantsKm = /(\bkm\b|chilometr|kilometr|spostament|tratt|strada|rimbors)/.test(n);
+    const wantsExcel = /(excel|xlsx|scarica|download|file|esporta|riepilogo km|resoconto km)/.test(n);
+    if(!wantsKm || !wantsExcel) return false;
+    if(typeof window.rvDownloadKmExcel !== 'function') return false;
+    const p = rvAiParseKmExcelPeriod(text);
+    window.kmStart = p.start; window.kmEnd = p.end; window.kmDay = p.end;
     try{
-      if(current && current.role === 'company') users = (typeof rvWorkersKm === 'function' ? rvWorkersKm() : (typeof workers === 'function' ? workers() : []));
-      else users = current ? [current] : [];
-      if(typeof rvHasKm === 'function') users = users.filter(function(u){ return rvHasKm(u.id); });
-    }catch(e){ users = []; }
-    function addDays(d,n){ var x=new Date(d+'T00:00:00'); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); }
-    for(var day=start; day<=end; day=addDays(day,1)){
-      for(var ui=0; ui<users.length; ui++){
-        var u=users[ui], r=null;
-        try{
-          if(typeof routeForAsync === 'function') r = await routeForAsync(day,u.id);
-          else if(typeof routeFor === 'function') r = routeFor(day,u.id);
-        }catch(e){ r=null; }
-        if(!r || !Array.isArray(r.stops)) continue;
-        var rate = (typeof kmRate === 'function') ? Number(kmRate(u.id)||0) : 0;
-        for(var si=0; si<r.stops.length; si++){
-          var st=r.stops[si]||{};
-          rows.push({
-            data:day,
-            collaboratore:u.name||'',
-            sessione:st.sess ? (typeof sessionLabel === 'function' ? sessionLabel(st.sess) : String(st.sess)) : '',
-            ora:st.ora||'',
-            partenza:st.sessionStart ? '' : (st.from||''),
-            arrivo:st.sessionStart ? (st.to||'Casa') : (st.to||''),
-            km:Number(st.km||0),
-            rate:rate,
-            note:st.sessionStart ? 'Partenza' : (st.note || (typeof serviceNames === 'function' ? serviceNames(st.servs||[]) : ''))
-          });
-        }
-      }
+      await window.rvDownloadKmExcel();
+      addMsg('bot','Ho preparato il file Excel KM per '+p.label+'. Se il browser lo blocca, apri il tab KM e premi “Scarica Excel periodo”.');
+    }catch(e){
+      addMsg('bot','Non sono riuscito a scaricare automaticamente l’Excel KM. Apri il tab KM: ho impostato il periodo '+p.start+' - '+p.end+', poi premi “Scarica Excel periodo”. Dettaglio: '+(e&&e.message?e.message:e));
     }
-    return rows;
+    return true;
   }
-  function rvAiPeriodLabel(r){
-    if(r.start===r.end) return safeFmt(r.start);
-    if(r.start.slice(5)==='01-01' && r.end===iso()) return 'da inizio anno';
-    return safeFmt(r.start)+' - '+safeFmt(r.end);
-  }
-  async function rvAiHandleKmLocally(text){
-    if(!rvAiIsKmQuery(text)) return null;
-    var range=rvAiDateRangeFromText(text);
-    try{
-      var rows=await rvAiBuildKmRows(range.start,range.end);
-      var tratte=rows.filter(function(r){return String(r.note||'')!=='Partenza' && Number(r.km||0)>0;});
-      var totalKm=tratte.reduce(function(s,r){return s+Number(r.km||0);},0);
-      var totalRimb=tratte.reduce(function(s,r){return s+Number(r.km||0)*Number(r.rate||0);},0);
-      var byUser={};
-      tratte.forEach(function(r){var k=r.collaboratore||'Collaboratore';byUser[k]=byUser[k]||{km:0,rimb:0,n:0};byUser[k].km+=Number(r.km||0);byUser[k].rimb+=Number(r.km||0)*Number(r.rate||0);byUser[k].n+=1;});
-      if(rvAiWantsKmExcel(text)){
-        window.kmStart = range.start;
-        window.kmEnd = range.end;
-        if(typeof window.rvDownloadKmExcel === 'function') await window.rvDownloadKmExcel();
-        else throw new Error('Funzione export Excel KM non disponibile');
-        return 'Ho preparato e scaricato l’Excel KM per il periodo '+rvAiPeriodLabel(range)+'.\n\nTotale km: '+totalKm.toFixed(1)+' km\nSpostamenti/tratte: '+tratte.length+'\nRimborso stimato: '+safeEur(totalRimb)+'\n\nFile generato dal tab KM con font Garamond 12 e intestazioni in grassetto e sottolineate.';
-      }
-      if(!tratte.length) return 'Nel periodo '+rvAiPeriodLabel(range)+' non risultano spostamenti KM nel tab KM.';
-      var lines=Object.keys(byUser).sort().map(function(k){var v=byUser[k];return '- '+k+': '+v.km.toFixed(1)+' km, '+v.n+' tratte, rimborso '+safeEur(v.rimb);});
-      var out='Nel periodo '+rvAiPeriodLabel(range)+' hai fatto '+totalKm.toFixed(1)+' km.';
-      out+='\nSpostamenti/tratte registrate: '+tratte.length+'.';
-      out+='\nRimborso km: '+safeEur(totalRimb)+'.';
-      if(lines.length>1) out+='\n\nDettaglio per collaboratore:\n'+lines.join('\n');
-      out+='\n\nCalcolo basato sul tab KM del gestionale.';
-      return out;
-    }catch(err){
-      return 'Non riesco a calcolare i KM dal tab KM. Dettaglio tecnico: '+(err&&err.message?err.message:err);
-    }
-  }
-
   window.rvAiSend = async function(){
     ensureShell(); if (busy) return;
     const input = $('rvAiInput');
@@ -2967,14 +2887,7 @@ ${s.knowledge || ''}`;
     if (isSaveCommand(text)) { window.rvAiRemoveImage(); if (pendingClientAction) savePendingClientAction(); else if (pendingMgmtAction) savePendingMgmtAction(false); else savePendingAiAction(); return; }
     if (maybeLearn(text)) { window.rvAiRemoveImage(); return; }
     if (handleClientCreation(text)) { window.rvAiRemoveImage(); return; }
-    // Gestione KM locale: usa davvero il tab KM prima del backend.
-    if (rvAiIsKmQuery(text)) {
-      setBusy(true); typing(true, 'Calcolo i KM dal tab KM...');
-      try { const kmReply = await rvAiHandleKmLocally(text); typing(false); addMsg('bot', kmReply || 'Non riesco a calcolare i KM.'); }
-      catch(e) { typing(false); addMsg('bot','Non riesco a calcolare i KM dal tab KM. Dettaglio tecnico: ' + (e && e.message ? e.message : e)); }
-      finally { window.rvAiRemoveImage(); setBusy(false); }
-      return;
-    }
+    if (await rvAiTryKmExcel(text)) { window.rvAiRemoveImage(); return; }
     // Backend-first: i nuovi comandi passano sempre dal backend AI prima di rispondere.
     setBusy(true); typing(true, 'Consulto Rural Vet AI...');
     try { lastQuickReplies = []; const reply = await smartReply(label); typing(false); addMsg('bot', reply, mergeQuickReplies(lastQuickReplies, defaultQuickReplies())); }
