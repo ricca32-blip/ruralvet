@@ -1037,7 +1037,12 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   let pendingDeleteAction = null;
   let pendingChoiceAction = null;
   let pendingMgmtAction = null;
+  let pendingInterventionDraft = null;
+  let pendingEditInterventionDraft = null;
+  let pendingDeleteInterventionDraft = null;
   let pendingAnalyticsQuery = null;
+  let aiSessionId = 'ai_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+  let pendingDataQuery = null;
   let lastQuickReplies = [];
   let busy = false;
   let messages = [];
@@ -1113,6 +1118,27 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     else if (messages[0] && messages[0].role === 'bot' && isOldGreeting(messages[0].text)) messages[0].text = greetingMessage();
   }
   function saveHistory(){ localWrite(profileHistoryKey(), messages.slice(-70).map(m => ({role:m.role, text:m.text, at:m.at, quick:Array.isArray(m.quick)?m.quick.slice(0,8):[]}))); }
+
+  function resetAiChatSession(){
+    aiSessionId = 'ai_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+    messages = [];
+    pendingImage = null;
+    pendingInterventionDraft = null;
+    pendingEditInterventionDraft = null;
+    pendingDeleteInterventionDraft = null;
+    pendingAnalyticsQuery = null;
+    pendingDataQuery = null;
+    pendingAiAction = null;
+    pendingClientAction = null;
+    pendingDeleteAction = null;
+    pendingChoiceAction = null;
+    pendingMgmtAction = null;
+    lastQuickReplies = [];
+    const box = $('rvAiMessages'); if (box) box.innerHTML = '';
+    const input = $('rvAiInput'); if (input) { input.value = ''; autoGrow(input); }
+    const prev = $('rvAiPreview'); if (prev) prev.classList.remove('on');
+    try { localWrite(profileHistoryKey(), []); } catch(e){}
+  }
 
 
   function modeBadges(){
@@ -2043,7 +2069,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       saved++;
     });
     saveCloud();
-    pendingAiAction = null;
+    pendingAiAction = null; pendingInterventionDraft = null; pendingEditInterventionDraft = null; pendingDeleteInterventionDraft = null;
     if (rvAiVoiceLoop) stopVoiceLoop();
     if (typeof go === 'function') go('oggi');
     addMsg('bot', saved === 1 ? 'Fatto. Ho salvato l’intervento nel gestionale.' : 'Fatto. Ho salvato ' + saved + ' interventi nel gestionale.');
@@ -2133,9 +2159,14 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
         ctx.fatture = fattureAll;
         ctx.km = [];
         ctx.config = {iva:db.cfg && db.cfg.iva, kmRates:db.cfg && db.cfg.kmRates ? db.cfg.kmRates : {}};
-        if (pendingAnalyticsQuery) ctx.pendingAnalyticsQuery = pendingAnalyticsQuery;
         ctx.aziendeSample = aziendeAll.slice(0,35).map(a => a.nome).filter(Boolean);
         ctx.aiMemoryRecent = ((db.cfg && db.cfg.aiMemory) || []).filter(m => !m.userId || !current || m.userId === current.id || m.kind === 'istruzione').slice(0,80);
+        ctx.aiSessionId = aiSessionId;
+        if (pendingInterventionDraft) ctx.pendingInterventionDraft = pendingInterventionDraft;
+        if (pendingEditInterventionDraft) ctx.pendingEditInterventionDraft = pendingEditInterventionDraft;
+        if (pendingDeleteInterventionDraft) ctx.pendingDeleteInterventionDraft = pendingDeleteInterventionDraft;
+        if (pendingAnalyticsQuery) ctx.pendingAnalyticsQuery = pendingAnalyticsQuery;
+        if (pendingDataQuery) ctx.pendingDataQuery = pendingDataQuery;
       }
     } catch(e){ ctx.contextError = String(e && e.message ? e.message : e); }
     return ctx;
@@ -2163,6 +2194,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     const payload = {
       system:systemPrompt(),
       input:text,
+      aiSessionId:aiSessionId,
       image:pendingImage ? {name:pendingImage.name, mime:pendingImage.mime, dataUrl:pendingImage.dataUrl} : null,
       conversation:messages.slice(-6).map(m => ({role:m.role, content:m.text})),
       settings:s,
@@ -2178,17 +2210,26 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     lastQuickReplies = [];
     saveBackendLearnings(data.learn || data.learning || data.memories);
     const arrActions = Array.isArray(data.actions) ? data.actions.filter(Boolean) : [];
-    const onlyCreateInts = arrActions.length && arrActions.every(x => !x.type || String(x.type) === 'create_intervention');
-    const actionCandidate = data.action || (arrActions.length ? (onlyCreateInts ? {type:'create_interventions', items:arrActions} : {type:'batch_management_actions', items:arrActions}) : null);
-    if (data.clearDraft && pendingAnalyticsQuery) pendingAnalyticsQuery = null;
-    if (data.action && data.action.type === 'analytics_query') {
-      pendingAnalyticsQuery = data.action.query || data.action;
-    } else if (data.ui && data.ui.mode === 'analytics' && !data.action && !data.clearDraft) {
-      // Mantieni eventuale query analytics finché il backend non la chiude esplicitamente.
-    } else if (!/^(annulla)$/i.test(String(text || '').trim()) && !(data.ui && data.ui.mode === 'analytics')) {
-      pendingAnalyticsQuery = null;
+    if (data.clearDraft || data.clearState) { pendingInterventionDraft = null; pendingEditInterventionDraft = null; pendingDeleteInterventionDraft = null; pendingAnalyticsQuery = null; pendingDataQuery = null; }
+    if (data.state) {
+      pendingInterventionDraft = data.state.pendingInterventionDraft || null;
+      pendingEditInterventionDraft = data.state.pendingEditInterventionDraft || null;
+      pendingDeleteInterventionDraft = data.state.pendingDeleteInterventionDraft || null;
+      pendingAnalyticsQuery = data.state.pendingAnalyticsQuery || pendingAnalyticsQuery || null;
+      pendingDataQuery = data.state.pendingDataQuery || pendingDataQuery || null;
     }
-    if (actionCandidate && !(actionCandidate.type === 'analytics_query')) {
+    if (data.action && data.action.type === 'intervention_draft') {
+      pendingInterventionDraft = data.action.draft || data.action;
+      pendingAiAction = null; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null;
+    }
+    if (data.action && data.action.type === 'edit_intervention_draft') pendingEditInterventionDraft = data.action.draft || data.action;
+    if (data.action && data.action.type === 'delete_intervention_draft') pendingDeleteInterventionDraft = data.action.draft || data.action;
+    if (data.action && data.action.type === 'analytics_query') pendingAnalyticsQuery = data.action.query || data.action;
+    if (data.action && data.action.type === 'data_query') pendingDataQuery = data.action.query || data.action;
+    const onlyCreateInts = arrActions.length && arrActions.every(x => !x.type || String(x.type) === 'create_intervention');
+    let actionCandidate = (data.action && data.action.type === 'intervention_draft') ? null : (data.action || (arrActions.length ? (onlyCreateInts ? {type:'create_interventions', items:arrActions} : {type:'batch_management_actions', items:arrActions}) : null));
+    if (actionCandidate && actionCandidate.type === 'create_intervention' && data.ui && data.ui.safeToApply) { /* keep draft until SALVA/Annulla so bottoni Modifica continuano il flusso */ }
+    if (actionCandidate) {
       const normAction = normalizeAiAction(actionCandidate, text);
       if (normAction && normAction.type === 'create_client') { pendingClientAction = normAction; pendingAiAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; }
       else if (normAction && normAction.type === 'delete_intervention') { pendingDeleteAction = normAction; pendingAiAction = null; pendingClientAction = null; pendingChoiceAction = null; pendingMgmtAction = null; }
@@ -2196,13 +2237,12 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       else if (normAction && normAction.type === 'choose_management') { pendingChoiceAction = normAction; pendingDeleteAction = null; pendingAiAction = null; pendingClientAction = null; pendingMgmtAction = null; }
       else if (isMgmtAction(normAction)) { pendingMgmtAction = normAction; pendingAiAction = null; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; }
       else { pendingAiAction = normAction; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; const choice = normAction ? disambiguateCreateAction(text, normAction) : null; if (choice) pendingChoiceAction = choice; }
-    } else if (!(actionCandidate && actionCandidate.type === 'analytics_query') && !/^(salva|conferma|ok salva|si salva|sì salva|registra|elimina|cancella)$/i.test(String(text || '').trim())) {
+    } else if (!/^(salva|conferma|ok salva|si salva|sì salva|registra|elimina|cancella)$/i.test(String(text || '').trim())) {
       pendingAiAction = null;
       pendingClientAction = null;
       pendingDeleteAction = null;
       pendingChoiceAction = null;
       pendingMgmtAction = null;
-      pendingAnalyticsQuery = null;
     }
     let reply = data.reply || data.answer || data.message || (data.output && String(data.output)) || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content);
     if (pendingClientAction && !reply) reply = describeClientAction(pendingClientAction);
@@ -2570,7 +2610,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     startVoiceRecognition(true);
   };
 
-  window.rvAiOpen = function(){ ensureShell(); loadHistory(); renderMessages(); renderSide(false); warmBackend(); const o = $('rvAiChat'); o.classList.remove('hidden'); o.setAttribute('aria-hidden','false'); setTimeout(() => { const i = $('rvAiInput'); if (i) i.focus(); }, 60); };
+  window.rvAiOpen = function(){ ensureShell(); resetAiChatSession(); renderMessages(); renderSide(false); warmBackend(); const o = $('rvAiChat'); o.classList.remove('hidden'); o.setAttribute('aria-hidden','false'); setTimeout(() => { const i = $('rvAiInput'); if (i) i.focus(); }, 60); };
   window.rvAiClose = function(){ const o = $('rvAiChat'); if (o) { o.classList.add('hidden'); o.setAttribute('aria-hidden','true'); } };
   window.rvAiOpenSettings = function(){ ensureShell(); renderSide(true); };
   window.rvAiCloseSettings = function(){ renderSide(false); const i = $('rvAiInput'); if (i) setTimeout(() => i.focus(), 40); };
@@ -2584,7 +2624,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     warmBackend();
     renderSide(false);
   };
-  window.rvAiNewChat = function(){ messages = [{role:'bot', text:greetingMessage()}]; pendingImage = null; saveHistory(); renderMessages(); renderSide(false); window.rvAiRemoveImage(); const input = $('rvAiInput'); if (input) { input.value = ''; autoGrow(input); input.focus(); } };
+  window.rvAiNewChat = function(){ resetAiChatSession(); saveHistory(); renderMessages(); renderSide(false); window.rvAiRemoveImage(); const input = $('rvAiInput'); if (input) { input.value = ''; autoGrow(input); input.focus(); } };
   window.rvAiPickImage = function(){ ensureShell(); const f = $('rvAiFile'); if (f) f.click(); };
   window.rvAiUploadNotes = function(){ ensureShell(); const f = $('rvAiNotesFile'); if (f) f.click(); };
   window.rvAiClearKnowledge = function(){ if (!confirm('Vuoi svuotare appunti e protocolli salvati per Rural Vet AI?')) return; saveSettings({knowledge:defaultSettings().knowledge}); renderSide(true); addMsg('system','Appunti AI riportati al testo base.'); };
