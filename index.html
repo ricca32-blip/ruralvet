@@ -2879,8 +2879,41 @@ ${s.knowledge || ''}`;
     return {start:today,end:today};
   }
   async function rvAiBuildKmRows(start,end){
-    if(typeof rowsForPeriod==='function') return await rowsForPeriod(start,end);
-    throw new Error('Funzione righe KM non disponibile');
+    var rows=[];
+    if(typeof db === 'undefined' || !db) return rows;
+    var users=[];
+    try{
+      if(current && current.role === 'company') users = (typeof rvWorkersKm === 'function' ? rvWorkersKm() : (typeof workers === 'function' ? workers() : []));
+      else users = current ? [current] : [];
+      if(typeof rvHasKm === 'function') users = users.filter(function(u){ return rvHasKm(u.id); });
+    }catch(e){ users = []; }
+    function addDays(d,n){ var x=new Date(d+'T00:00:00'); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); }
+    for(var day=start; day<=end; day=addDays(day,1)){
+      for(var ui=0; ui<users.length; ui++){
+        var u=users[ui], r=null;
+        try{
+          if(typeof routeForAsync === 'function') r = await routeForAsync(day,u.id);
+          else if(typeof routeFor === 'function') r = routeFor(day,u.id);
+        }catch(e){ r=null; }
+        if(!r || !Array.isArray(r.stops)) continue;
+        var rate = (typeof kmRate === 'function') ? Number(kmRate(u.id)||0) : 0;
+        for(var si=0; si<r.stops.length; si++){
+          var st=r.stops[si]||{};
+          rows.push({
+            data:day,
+            collaboratore:u.name||'',
+            sessione:st.sess ? (typeof sessionLabel === 'function' ? sessionLabel(st.sess) : String(st.sess)) : '',
+            ora:st.ora||'',
+            partenza:st.sessionStart ? '' : (st.from||''),
+            arrivo:st.sessionStart ? (st.to||'Casa') : (st.to||''),
+            km:Number(st.km||0),
+            rate:rate,
+            note:st.sessionStart ? 'Partenza' : (st.note || (typeof serviceNames === 'function' ? serviceNames(st.servs||[]) : ''))
+          });
+        }
+      }
+    }
+    return rows;
   }
   function rvAiPeriodLabel(r){
     if(r.start===r.end) return safeFmt(r.start);
@@ -2898,9 +2931,11 @@ ${s.knowledge || ''}`;
       var byUser={};
       tratte.forEach(function(r){var k=r.collaboratore||'Collaboratore';byUser[k]=byUser[k]||{km:0,rimb:0,n:0};byUser[k].km+=Number(r.km||0);byUser[k].rimb+=Number(r.km||0)*Number(r.rate||0);byUser[k].n+=1;});
       if(rvAiWantsKmExcel(text)){
-        var blob=buildXlsx(rows,range.start,range.end), a=document.createElement('a');
-        a.href=URL.createObjectURL(blob);a.download='RuralVet_KM_'+range.start+'_al_'+range.end+'.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href);},1500);
-        return 'Ho preparato e scaricato l’Excel KM per il periodo '+rvAiPeriodLabel(range)+'.\n\nTotale km: '+totalKm.toFixed(1)+' km\nSpostamenti/tratte: '+tratte.length+'\nRimborso stimato: '+safeEur(totalRimb)+'\n\nFile generato con font Garamond 12 e intestazioni in grassetto e sottolineate.';
+        window.kmStart = range.start;
+        window.kmEnd = range.end;
+        if(typeof window.rvDownloadKmExcel === 'function') await window.rvDownloadKmExcel();
+        else throw new Error('Funzione export Excel KM non disponibile');
+        return 'Ho preparato e scaricato l’Excel KM per il periodo '+rvAiPeriodLabel(range)+'.\n\nTotale km: '+totalKm.toFixed(1)+' km\nSpostamenti/tratte: '+tratte.length+'\nRimborso stimato: '+safeEur(totalRimb)+'\n\nFile generato dal tab KM con font Garamond 12 e intestazioni in grassetto e sottolineate.';
       }
       if(!tratte.length) return 'Nel periodo '+rvAiPeriodLabel(range)+' non risultano spostamenti KM nel tab KM.';
       var lines=Object.keys(byUser).sort().map(function(k){var v=byUser[k];return '- '+k+': '+v.km.toFixed(1)+' km, '+v.n+' tratte, rimborso '+safeEur(v.rimb);});
