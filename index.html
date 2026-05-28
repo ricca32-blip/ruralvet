@@ -1060,7 +1060,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   function addUnique(arr, v){ v = String(v || '').trim(); if (v && arr.indexOf(v) < 0) arr.push(v); }
   function uniq(arr){ const seen = new Set(); return arr.filter(x => { const k = String((x.url || x.title || x.snippet || '')).toLowerCase(); if (!k || seen.has(k)) return false; seen.add(k); return true; }); }
 
-  const RV_DEFAULT_AI_ENDPOINT = (window.RV_AI_ENDPOINT || 'https://rural-vet-ai.onrender.com/api/vet-ai-chat');
+  const RV_DEFAULT_AI_ENDPOINT = 'https://rural-vet-ai.onrender.com/api/vet-ai-chat';
   function normalizeEndpoint(value){
     value = String(value || '').trim();
     if (!value || value === '/api/vet-ai-chat') value = RV_DEFAULT_AI_ENDPOINT;
@@ -1083,7 +1083,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     if (!out.style || /Triage\/urgenza|3-5 azioni|testi lunghi|Domande mirate|checklist lunghe/i.test(out.style)) out.style = d.style;
     if (!out.knowledge) out.knowledge = d.knowledge;
     if (out.useWeb === undefined) out.useWeb = true;
-    out.endpoint = normalizeEndpoint(out.endpoint);
+    out.endpoint = RV_DEFAULT_AI_ENDPOINT;
     return out;
   }
   function saveSettings(next){
@@ -2119,6 +2119,156 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     return true;
   }
 
+
+  function rvAiPad2(v){ return String(v).padStart(2,'0'); }
+  function rvAiIso(d){ return d.getFullYear() + '-' + rvAiPad2(d.getMonth()+1) + '-' + rvAiPad2(d.getDate()); }
+  function rvAiAddDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+  function rvAiStartOfWeek(d){ const x=new Date(d); const day=(x.getDay()+6)%7; x.setDate(x.getDate()-day); return x; }
+  const rvAiMonths = {gennaio:0,febbraio:1,marzo:2,aprile:3,maggio:4,giugno:5,luglio:6,agosto:7,settembre:8,ottobre:9,novembre:10,dicembre:11};
+  function rvAiParsePeriod(text){
+    const raw = String(text || '');
+    const t = norm(raw);
+    const base = new Date();
+    const today = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+    let start='', end='', label='';
+    const matches = Array.from(raw.matchAll(/\b(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\b/g));
+    function conv(m){ let y=m[3]?Number(m[3]):today.getFullYear(); if(y<100)y+=2000; return y+'-'+rvAiPad2(m[2])+'-'+rvAiPad2(m[1]); }
+    if(matches.length>=2){ start=conv(matches[0]); end=conv(matches[1]); label='dal '+start+' al '+end; }
+    else if(matches.length===1){ start=end=conv(matches[0]); label=start; }
+    if(!start){
+      const yearMatch = t.match(/\b(20\d{2}|19\d{2})\b/);
+      const mn = Object.keys(rvAiMonths).find(m => new RegExp('\\b'+m+'\\b').test(t));
+      if(mn){ const y=yearMatch?Number(yearMatch[1]):today.getFullYear(); const m=rvAiMonths[mn]; start=rvAiIso(new Date(y,m,1)); end=rvAiIso(new Date(y,m+1,0)); label=mn+' '+y; }
+    }
+    if(!start && /\bytd\b|da inizio anno|dall inizio anno|inizio anno/.test(t)){ start=today.getFullYear()+'-01-01'; end=rvAiIso(today); label='da inizio anno'; }
+    else if(!start && /\boggi\b/.test(t)){ start=end=rvAiIso(today); label='oggi'; }
+    else if(!start && /\bieri\b/.test(t)){ const d=rvAiAddDays(today,-1); start=end=rvAiIso(d); label='ieri'; }
+    else if(!start && /settimana scorsa/.test(t)){ const s=rvAiAddDays(rvAiStartOfWeek(today),-7); const e=rvAiAddDays(s,6); start=rvAiIso(s); end=rvAiIso(e); label='settimana scorsa'; }
+    else if(!start && /questa settimana|settimana corrente/.test(t)){ const s=rvAiStartOfWeek(today); start=rvAiIso(s); end=rvAiIso(today); label='questa settimana'; }
+    else if(!start && /mese scorso/.test(t)){ const y=today.getMonth()===0?today.getFullYear()-1:today.getFullYear(); const m=today.getMonth()===0?11:today.getMonth()-1; start=rvAiIso(new Date(y,m,1)); end=rvAiIso(new Date(y,m+1,0)); label='mese scorso'; }
+    else if(!start && /ultimo mese|ultimi 30 giorni/.test(t)){ start=rvAiIso(rvAiAddDays(today,-30)); end=rvAiIso(today); label='ultimo mese'; }
+    else if(!start && /questo mese|mese corrente/.test(t)){ start=rvAiIso(new Date(today.getFullYear(),today.getMonth(),1)); end=rvAiIso(today); label='questo mese'; }
+    else if(!start && /\b(20\d{2}|19\d{2})\b/.test(t)){ const y=Number(t.match(/\b(20\d{2}|19\d{2})\b/)[1]); start=y+'-01-01'; end=y+'-12-31'; label=String(y); }
+    if(!start){ start=end=rvAiIso(today); label='oggi'; }
+    if(start>end){ const tmp=start; start=end; end=tmp; }
+    return {start,end,label};
+  }
+  function rvAiIsKmText(text){ return /(\bkm\b|chilometr|kilometr|strada|spostament|tratt|rimbors)/.test(norm(text)); }
+  function rvAiIsKmExcelText(text){ const t=norm(text); return rvAiIsKmText(text) && /(excel|xlsx|scarica|download|esporta|file|resoconto|riepilogo)/.test(t); }
+  function rvAiDateRange(start,end){
+    const out=[]; let a=new Date(start+'T12:00:00'), b=new Date(end+'T12:00:00');
+    if(isNaN(a)||isNaN(b)) return out;
+    if(a>b){ const t=a; a=b; b=t; }
+    for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){ out.push(rvAiIso(d)); if(out.length>370) break; }
+    return out;
+  }
+  function rvAiKmUsers(){
+    try {
+      if (typeof current !== 'undefined' && current && current.role !== 'company') return [current];
+      if (typeof workers === 'function') return workers();
+      if (typeof current !== 'undefined' && current) return [current];
+    } catch(e) {}
+    return [];
+  }
+  function rvAiSessionText(s){
+    if(!s) return '';
+    const v = String(s).toLowerCase();
+    if(v === 'm') return 'Mattina';
+    if(v === 'p') return 'Pomeriggio';
+    if(v === 'n') return 'Notte';
+    try { if (typeof sessionLabel === 'function') return sessionLabel(s); } catch(e) {}
+    return String(s);
+  }
+  function rvAiServiceNames(servs){
+    try { if (typeof serviceNames === 'function') return serviceNames(servs); } catch(e) {}
+    return '';
+  }
+  function rvAiKmRate(uid){
+    try { if (typeof kmRate === 'function') return Number(kmRate(uid) || 0); } catch(e) {}
+    try { return Number(db && db.cfg && db.cfg.kmRates && db.cfg.kmRates[uid] || 0); } catch(e) {}
+    return 0;
+  }
+  async function rvAiBuildKmRows(start,end){
+    const routeFn = window.routeForAsync || (typeof routeForAsync === 'function' ? routeForAsync : null);
+    if (!routeFn) throw new Error('Funzione tab KM non disponibile nel gestionale');
+    const users = rvAiKmUsers();
+    const dates = rvAiDateRange(start,end);
+    const rows = [];
+    for (const day of dates) {
+      for (const u of users) {
+        const r = await routeFn(day, u.id);
+        const rate = rvAiKmRate(u.id);
+        const stops = Array.isArray(r && r.stops) ? r.stops : [];
+        stops.forEach(s => {
+          const km = Number(s.km || 0);
+          rows.push({
+            data: day,
+            collaboratore: u.name || u.id || '',
+            userId: u.id || '',
+            sessione: rvAiSessionText(s.sess),
+            ora: s.ora || '',
+            partenza: s.sessionStart ? '' : (s.from || ''),
+            arrivo: s.sessionStart ? (s.to || 'Casa') : (s.to || ''),
+            km: km,
+            rate: rate,
+            tariffaKm: rate,
+            rimborso: km * rate,
+            tipo: s.sessionStart ? 'partenza' : 'tratta',
+            note: s.sessionStart ? 'Partenza' : (s.note || rvAiServiceNames(s.servs) || '')
+          });
+        });
+      }
+    }
+    return rows;
+  }
+  async function rvAiKmContextForText(text){
+    if(!rvAiIsKmText(text)) return null;
+    const p = rvAiParsePeriod(text);
+    const rows = await rvAiBuildKmRows(p.start,p.end);
+    return {rows, period:p};
+  }
+  function rvAiEuro(v){ try { return new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(Number(v||0)); } catch(e){ return '€'+Number(v||0).toFixed(2); } }
+  function rvAiXmlEsc(v){ return String(v==null?'':v).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c])); }
+  function rvAiColName(n){ let s=''; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); } return s; }
+  function rvAiCell(row,col,val,style){ const ref=rvAiColName(col)+row; const s=style!=null?' s="'+style+'"':''; if(typeof val==='number'&&isFinite(val)) return '<c r="'+ref+'"'+s+'><v>'+val+'</v></c>'; return '<c r="'+ref+'" t="inlineStr"'+s+'><is><t>'+rvAiXmlEsc(val==null?'':val)+'</t></is></c>'; }
+  function rvAiFCell(row,col,formula,value,style){ const ref=rvAiColName(col)+row; const s=style!=null?' s="'+style+'"':''; const v=(typeof value==='number'&&isFinite(value))?'<v>'+value+'</v>':''; return '<c r="'+ref+'"'+s+'><f>'+rvAiXmlEsc(formula)+'</f>'+v+'</c>'; }
+  function rvAiRowXml(r,cells){ return '<row r="'+r+'">'+cells.join('')+'</row>'; }
+  function rvAiSheetXml(rows,cols){ return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+(cols||'')+'<sheetData>'+rows.join('')+'</sheetData></worksheet>'; }
+  function rvAiStylesXml(){ return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="€ #,##0.00"/></numFmts><fonts count="2"><font><sz val="12"/><name val="Garamond"/><family val="1"/></font><font><b/><u/><sz val="12"/><name val="Garamond"/><family val="1"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="2" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'; }
+  function rvAiCrc32(bytes){ const table=rvAiCrc32.table||(rvAiCrc32.table=(function(){ const t=[]; for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })()); let c=0xffffffff; for(let i=0;i<bytes.length;i++) c=table[(c^bytes[i])&255]^(c>>>8); return (c^0xffffffff)>>>0; }
+  function rvAiPushU16(a,n){ a.push(n&255,(n>>>8)&255); } function rvAiPushU32(a,n){ a.push(n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255); }
+  function rvAiDosDate(d){ return ((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(); } function rvAiDosTime(d){ return (d.getHours()<<11)|(d.getMinutes()<<5)|(Math.floor(d.getSeconds()/2)); }
+  function rvAiZipStore(files){ const enc=new TextEncoder(),out=[],central=[]; let offset=0; const now=new Date(),time=rvAiDosTime(now),date=rvAiDosDate(now); Object.entries(files).forEach(ent=>{ const name=ent[0],xml=ent[1],nameB=enc.encode(name),data=enc.encode(xml),crc=rvAiCrc32(data),local=[]; rvAiPushU32(local,0x04034b50); rvAiPushU16(local,20); rvAiPushU16(local,0x0800); rvAiPushU16(local,0); rvAiPushU16(local,time); rvAiPushU16(local,date); rvAiPushU32(local,crc); rvAiPushU32(local,data.length); rvAiPushU32(local,data.length); rvAiPushU16(local,nameB.length); rvAiPushU16(local,0); out.push.apply(out,local); out.push.apply(out,nameB); out.push.apply(out,data); const c=[]; rvAiPushU32(c,0x02014b50); rvAiPushU16(c,20); rvAiPushU16(c,20); rvAiPushU16(c,0x0800); rvAiPushU16(c,0); rvAiPushU16(c,time); rvAiPushU16(c,date); rvAiPushU32(c,crc); rvAiPushU32(c,data.length); rvAiPushU32(c,data.length); rvAiPushU16(c,nameB.length); rvAiPushU16(c,0); rvAiPushU16(c,0); rvAiPushU16(c,0); rvAiPushU16(c,0); rvAiPushU32(c,0); rvAiPushU32(c,offset); central.push.apply(central,c); central.push.apply(central,nameB); offset+=local.length+nameB.length+data.length; }); const centralOffset=out.length; out.push.apply(out,central); const end=[]; rvAiPushU32(end,0x06054b50); rvAiPushU16(end,0); rvAiPushU16(end,0); rvAiPushU16(end,Object.keys(files).length); rvAiPushU16(end,Object.keys(files).length); rvAiPushU32(end,central.length); rvAiPushU32(end,centralOffset); rvAiPushU16(end,0); out.push.apply(out,end); return new Uint8Array(out); }
+  function rvAiBuildStyledKmXlsx(rows,start,end){
+    const headers=['Data','Collaboratore','Sessione','Ora','Partenza','Arrivo','Km tratta','EUR/km','Rimborso tratta','Note'];
+    const detail=[rvAiRowXml(1,headers.map((h,i)=>rvAiCell(1,i+1,h,1)))];
+    let totalKm=0,totalRimb=0;
+    rows.forEach((r,idx)=>{ const rr=idx+2; const km=Number(r.km||0), rate=Number(r.rate||r.tariffaKm||0), rim=Number(r.rimborso||km*rate); totalKm+=km; totalRimb+=rim; detail.push(rvAiRowXml(rr,[rvAiCell(rr,1,r.data),rvAiCell(rr,2,r.collaboratore),rvAiCell(rr,3,r.sessione),rvAiCell(rr,4,r.ora),rvAiCell(rr,5,r.partenza),rvAiCell(rr,6,r.arrivo),rvAiCell(rr,7,km,2),rvAiCell(rr,8,rate,3),rvAiFCell(rr,9,'G'+rr+'*H'+rr,rim,3),rvAiCell(rr,10,r.note)])); });
+    const lastData=Math.max(rows.length+1,2), totalRow=rows.length+3;
+    detail.push(rvAiRowXml(totalRow,[rvAiCell(totalRow,1,'TOTALE',1),rvAiCell(totalRow,2,''),rvAiCell(totalRow,3,''),rvAiCell(totalRow,4,''),rvAiCell(totalRow,5,''),rvAiCell(totalRow,6,''),rvAiFCell(totalRow,7,'SUM(G2:G'+lastData+')',totalKm,2),rvAiCell(totalRow,8,''),rvAiFCell(totalRow,9,'SUM(I2:I'+lastData+')',totalRimb,3),rvAiCell(totalRow,10,'')]));
+    const cols='<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="4" width="16" customWidth="1"/><col min="5" max="6" width="28" customWidth="1"/><col min="7" max="9" width="15" customWidth="1"/><col min="10" max="10" width="42" customWidth="1"/></cols>';
+    const detailSheet=rvAiSheetXml(detail,cols);
+    const people=Array.from(new Set(rows.map(r=>r.collaboratore))).filter(Boolean).sort((a,b)=>String(a).localeCompare(String(b),'it'));
+    const sum=[rvAiRowXml(1,[rvAiCell(1,1,'Periodo',1),rvAiCell(1,2,start+' - '+end)]),rvAiRowXml(2,[rvAiCell(2,1,'Collaboratore',1),rvAiCell(2,2,'Km totali',1),rvAiCell(2,3,'Rimborso totale',1),rvAiCell(2,4,'Tratte con km',1)])];
+    people.forEach((p,i)=>{ const rr=i+3; const pr=rows.filter(r=>r.collaboratore===p); const km=pr.reduce((s,r)=>s+Number(r.km||0),0); const rim=pr.reduce((s,r)=>s+Number(r.rimborso||Number(r.km||0)*Number(r.rate||0)),0); const n=pr.filter(r=>Number(r.km||0)>0).length; sum.push(rvAiRowXml(rr,[rvAiCell(rr,1,p),rvAiCell(rr,2,km,2),rvAiCell(rr,3,rim,3),rvAiCell(rr,4,n)])); });
+    const sr=people.length+4; sum.push(rvAiRowXml(sr,[rvAiCell(sr,1,'TOTALE',1),rvAiCell(sr,2,totalKm,2),rvAiCell(sr,3,totalRimb,3),rvAiCell(sr,4,rows.filter(r=>Number(r.km||0)>0).length)]));
+    const summarySheet=rvAiSheetXml(sum,'<cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="4" width="18" customWidth="1"/></cols>');
+    const files={'[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>','_rels/.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>','xl/workbook.xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Dettaglio KM" sheetId="1" r:id="rId1"/><sheet name="Riepilogo" sheetId="2" r:id="rId2"/></sheets><calcPr calcMode="auto" fullCalcOnLoad="1"/></workbook>','xl/_rels/workbook.xml.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>','xl/styles.xml':rvAiStylesXml(),'xl/worksheets/sheet1.xml':detailSheet,'xl/worksheets/sheet2.xml':summarySheet};
+    return new Blob([rvAiZipStore(files)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  }
+  function rvAiDownloadBlob(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1500); }
+  async function rvAiHandleLocalRequest(text){
+    if(!rvAiIsKmExcelText(text)) return null;
+    const p = rvAiParsePeriod(text);
+    typingText('Preparo Excel KM dal tab KM...');
+    const rows = await rvAiBuildKmRows(p.start,p.end);
+    const blob = rvAiBuildStyledKmXlsx(rows,p.start,p.end);
+    rvAiDownloadBlob(blob,'RuralVet_KM_'+p.start+'_al_'+p.end+'.xlsx');
+    const km = rows.reduce((s,r)=>s+Number(r.km||0),0);
+    const rim = rows.reduce((s,r)=>s+Number(r.rimborso||0),0);
+    return 'Ho preparato e scaricato l’Excel KM '+p.label+'.\nTotale: '+km.toFixed(1)+' km · Rimborso: '+rvAiEuro(rim)+'.\nFormato: Garamond 12, intestazioni in grassetto e sottolineate.';
+  }
+
   function appContext(inputText){
     let ctx = {date:new Date().toISOString(), app:'Rural Vet', domain:'veterinaria buiatrica'};
     try { if (typeof current !== 'undefined' && current) ctx.user = {id:current.id, name:current.name, role:current.role}; } catch(e){}
@@ -2126,7 +2276,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       if (typeof db !== 'undefined' && db) {
         const n = norm(inputText || '');
         const aziendeAll = (db.aziende || []).map(a => ({
-          id:a.id, nome:a.nome, ragioneSociale:a.ragioneSociale || '', addr:a.addr || a.indirizzo || '', comune:a.comune || '', cap:a.cap || '', provincia:a.provincia || '', piva:a.piva || '', cf:a.cf || '', sdi:a.sdi || '', tel:a.tel || '', email:a.email || '', km:a.km || 0
+          id:a.id, nome:a.nome, ragioneSociale:a.ragioneSociale || '', addr:a.addr || a.indirizzo || '', comune:a.comune || '', cap:a.cap || '', provincia:a.provincia || '', piva:a.piva || '', cf:a.cf || '', sdi:a.sdi || '', tel:a.tel || '', email:a.email || '', km:a.km || 0, prezzi:a.prezzi || {}
         })).filter(a => a.nome);
         const prestazioniAll = (db.prest || []).map(p => ({id:p.id, nome:p.nome, cat:p.cat || '', tipo:p.tipo || 'Prestazione', price:Number(p.price || p.prezzo || 0)})).filter(p => p.nome);
         const usersAll = (typeof workers === 'function' ? workers() : []).map(u => ({id:u.id, name:u.name, role:u.role || ''})).filter(u => u.name);
@@ -2157,7 +2307,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
         ctx.interventi = interventiAll;
         ctx.interventiRecenti = interventiRecenti;
         ctx.fatture = fattureAll;
-        ctx.km = [];
+        ctx.km = []; ctx.kmRows = []; ctx.kmRowsComputed = false; ctx.kmSource = '';
         ctx.config = {iva:db.cfg && db.cfg.iva, kmRates:db.cfg && db.cfg.kmRates ? db.cfg.kmRates : {}};
         ctx.aziendeSample = aziendeAll.slice(0,35).map(a => a.nome).filter(Boolean);
         ctx.aiMemoryRecent = ((db.cfg && db.cfg.aiMemory) || []).filter(m => !m.userId || !current || m.userId === current.id || m.kind === 'istruzione').slice(0,80);
@@ -2176,21 +2326,47 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   function systemPrompt(){
     const s = getSettings();
     return [
-      'Sei Rural Vet AI, copilota del gestionale veterinario Rural Vet. Devi ragionare prima sui dati reali del gestionale e non inventare numeri. Puoi aiutare a: inserire interventi, modificare interventi, eliminare interventi, creare/modificare clienti, gestire listino/prezzi, emettere o aggiornare fatture, modificare impostazioni, fare analisi economiche e operative.',
-      'Per ogni modifica prepara una action strutturata e non dire mai fatto prima della conferma SALVA o ELIMINA. Nell inserimento interventi estrai cliente, prestazioni, quantita, data, ora, sessione e note; se manca data/ora chiedi ADESSO o un giorno/ora. Se ci sono ambiguita proponi una scelta numerata. Quando puoi proponi bottoni rapidi come SALVA, ELIMINA, ADESSO, Annulla.',
-      'Per dati economici rispondi con ricavi, fatture emesse, incassato, da pagare, da fatturare, top clienti/prestazioni/veterinari e periodo considerato.',
-      'Per casi clinici veterinari: diagnosi probabile, urgenza, 2-4 differenziali, cosa controllare subito, trattamento solo come orientamento prudente e massimo 3 domande mirate; conferma sempre visita, ricetta e tempi di sospensione.',
+      'Sei Rural Vet AI, copilota del gestionale veterinario Rural Vet / progetto RM.',
+      'Regola base: usa sempre prima i dati reali nel contesto gestionale. Non inventare mai interventi, clienti, prestazioni, km, importi, fatture, P.IVA, CF, SDI o ricavi.',
+      'Non aggiungere mai filtri non richiesti. Se l utente chiede un analisi non rispondere con frasi tipo non trovo interventi per Medardo Cammi · Euro Holstein · da inizio anno, salvo che quei filtri siano stati esplicitamente richiesti.',
+      'Servizi = prestazioni. Un intervento è il contenitore; le prestazioni sono righe interne. Esempio: Arata cesareo x1 e parto x1 = 1 intervento da Arata con 2 prestazioni, non 2 interventi.',
+      'Quando l utente scrive Segnami, Segna, Ho fatto, Aggiungi, Inserisci, Registra, Metti, Carica, Scrivi, Annota, Salvami o Mi registri seguito da cliente e prestazioni, interpreta come intent add_intervention. Estrai cliente, data, ora/sessione, prestazioni e quantità. Se ci sono più prestazioni stesso cliente/stesso momento crea un solo intervento multi-prestazione. Per modifiche proponi SALVA o Annulla e non dire fatto prima della conferma.',
+      'Fasce orarie: stamattina, questa mattina, in mattinata, prima di pranzo = sessione mattina; pomeriggio, nel pomeriggio, dopo pranzo, primo/tardo pomeriggio = sessione pomeriggio; sera, stasera, in serata, dopo cena = sessione sera; notte, stanotte, in nottata, di notte = sessione notte. Se è presente una sessione non chiedere l ora precisa salvo obbligo tecnico.',
+      'KM/chilometri/kilometri/strada/spostamenti/tratte/rimborsi km: usa solo dati del tab KM forniti come context.kmRows. Rispondi a quanti KM ho fatto da inizio anno, questo mese, ieri, oggi o da data X a data Y con totale km, numero tratte/spostamenti, rimborso e dettaglio collaboratore se presente. Non stimare distanze e non usare solo il km anagrafico azienda.',
+      'Excel KM: se l utente chiede riepilogo/resoconto/export/scarica Excel KM da X a Y, il frontend genera il file dal tab KM. Il formato richiesto è Garamond 12 con intestazioni colonne in grassetto e sottolineate.',
+      'Riepilogo interventi: per domande come Quali interventi ho fatto ieri, Dove sono stato ieri, Cosa ho fatto ieri, mostra aziende visitate, prestazioni/quantità, ricavi per azienda, totale ricavi, numero aziende, numero interventi e numero prestazioni/servizi. Esplodi sempre interventi multi-prestazione.',
+      'Conteggi: Quanti parti/cesarei/fecondazioni/ecografie/visite ho fatto da inizio anno o in un periodo = conta quantità della prestazione richiesta, non solo numero interventi. Parti si normalizza a Parto, cesarei a Cesareo, fecondazioni a Fecondazione.',
+      'Ricavi per prestazione/servizio: aggrega le singole prestazioni dentro gli interventi, mostra ricavo assoluto, percentuale sul totale e quantità, ordinando decrescente.',
+      'Ricavi per azienda: per Quale azienda mi ha dato più ricavi nell ultimo mese/top aziende/migliori clienti, aggrega ricavi per azienda, mostra valore assoluto, percentuale sul totale e totale ricavi del periodo.',
+      'Tariffario/listino: per Quanto costa, qual è il prezzo/listino/tariffario di una prestazione, cerca nel listino prestazioni. Se viene indicato un cliente, preferisci prezzo specifico cliente e poi prezzo base.',
+      'Dati fiscali: P.IVA, PIVA, partita iva, numero iva = campo piva. CF/codice fiscale = cf. SDI/codice destinatario = sdi.',
+      'Per casi clinici veterinari: diagnosi probabile, urgenza, differenziali principali, cosa controllare subito e massimo 3 domande mirate. Conferma sempre visita, ricetta, protocolli e tempi di sospensione.',
+      'Rispondi in italiano, in modo operativo e sintetico. Se mancano dati reali, dillo chiaramente senza inventare.',
       'Stile utente: ' + (s.style || ''),
-      'Appunti/protocolli interni da usare quando rilevanti:',
+      'Appunti/protocolli interni:',
       s.knowledge || ''
-    ].join('\n');
+    ].join('\\n');
   }
+
 
   async function callBackend(text){
     const s = getSettings();
     s.endpoint = normalizeEndpoint(s.endpoint);
     saveSettings({endpoint:s.endpoint});
     if (!s.endpoint) throw new Error('Nessun endpoint AI configurato');
+    const ctx = appContext(text);
+    try {
+      const kmPack = await rvAiKmContextForText(text);
+      if (kmPack) {
+        ctx.kmRows = kmPack.rows;
+        ctx.km = kmPack.rows;
+        ctx.kmRowsComputed = true;
+        ctx.kmSource = 'tab_km';
+        ctx.kmPeriod = kmPack.period;
+      }
+    } catch(e) {
+      ctx.kmRowsError = String(e && e.message ? e.message : e);
+    }
     const payload = {
       system:systemPrompt(),
       input:text,
@@ -2198,10 +2374,10 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       image:pendingImage ? {name:pendingImage.name, mime:pendingImage.mime, dataUrl:pendingImage.dataUrl} : null,
       conversation:messages.slice(-6).map(m => ({role:m.role, content:m.text})),
       settings:s,
-      context:appContext(text)
+      context:ctx
     };
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timer = ctrl ? setTimeout(() => ctrl.abort(), 22000) : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 90000) : null;
     let res;
     try { res = await fetch(s.endpoint, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal:ctrl ? ctrl.signal : undefined}); }
     finally { if (timer) clearTimeout(timer); }
@@ -2510,6 +2686,8 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     return buildBasicAnswer(ctx, f, candidates, notes, sources, ocr, backendErr);
   }
   async function smartReply(text){
+    const local = await rvAiHandleLocalRequest(text);
+    if (local) return local;
     const s = getSettings();
     s.endpoint = normalizeEndpoint(s.endpoint);
     saveSettings({endpoint:s.endpoint});
