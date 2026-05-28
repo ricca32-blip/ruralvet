@@ -1719,7 +1719,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       if (when.date) a.data = when.date;
       if (when.time) a.ora = when.time;
       if (when.session) a.sess = when.session;
-      a.needsWhen = !(a.data && (a.ora || a.sess));
+      a.needsWhen = !(a.data && a.ora);
     });
   }
   function normalizeSingleAction(action, sourceText){
@@ -1740,7 +1740,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     let data = hasActionDate ? String(action.date) : (when.date || '');
     let ora = hasActionTime ? String(action.time).slice(0,5) : (when.time || '');
     let sess = ['m','p','n'].includes(String(action.session || '').toLowerCase()) ? String(action.session).toLowerCase() : (when.session || defaultSession());
-    return {type:'create_intervention', company:company || null, companyName: action.companyName || action.azienda || action.company || '', servs:servs, missing:missing, data:data, sess:sess, ora:ora, needsWhen: !(data && (ora || sess)), note: String(action.note || '').slice(0,500)};
+    return {type:'create_intervention', company:company || null, companyName: action.companyName || action.azienda || action.company || '', servs:servs, missing:missing, data:data, sess:sess, ora:ora, needsWhen: !(data && ora), note: String(action.note || '').slice(0,500)};
   }
   function normalizeDeleteAction(action, sourceText){
     if (!action) return null;
@@ -2086,7 +2086,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     const spokenCompany = company ? company.nome : extractCompanyNameFromText(text);
     if (!company && !spokenCompany && !servs.length) return null;
     const when = parseWhenText(text);
-    return {type:'create_intervention', company:company || null, companyName:company ? company.nome : spokenCompany, servs:servs, missing:[], data:when.date || '', ora:when.time || '', sess:when.session || defaultSession(), needsWhen:!(when.date && (when.time || when.session)), note:'Comando AI: ' + String(text).slice(0,220)};
+    return {type:'create_intervention', company:company || null, companyName:company ? company.nome : spokenCompany, servs:servs, missing:[], data:when.date || '', ora:when.time || '', sess:when.session || defaultSession(), needsWhen:!(when.date && when.time), note:'Comando AI: ' + String(text).slice(0,220)};
   }
   function tryLocalOperationalAction(text){
     const del = localDeleteFromText(text);
@@ -2118,39 +2118,6 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     addMsg('bot', describeAiAction(pendingAiAction), defaultQuickReplies());
     return true;
   }
-
-  function kmRowsForAiContext(inputText){
-    var rows=[];
-    try{
-      if(typeof db === 'undefined' || !db) return rows;
-      var txt=norm(inputText||'');
-      var asksKm=/(\bkm\b|chilometr|kilometr|spostament|tratt|strada|rimbors)/.test(txt);
-      if(!asksKm) return rows;
-      var visible=(current && current.role==='company') ? (db.int||[]) : (typeof scopeInts==='function'?scopeInts():(db.int||[]));
-      var days=Array.from(new Set((visible||[]).map(function(i){return i.data;}).filter(Boolean))).sort();
-      var today=todayIso();
-      var yearStart=(new Date().getFullYear())+'-01-01';
-      days=days.filter(function(d){return d>=yearStart && d<=today;});
-      if(!days.length && typeof visibleKmDays==='function') days=visibleKmDays().filter(function(d){return d>=yearStart && d<=today;});
-      var users=(typeof kmUsersVisible==='function') ? kmUsersVisible() : ((typeof workers==='function') ? workers() : []);
-      users=(users||[]).filter(function(u){return !current || current.role==='company' || String(u.id)===String(current.id);});
-      days.forEach(function(day){
-        users.forEach(function(u){
-          var r=(typeof routeFor==='function') ? routeFor(day,u.id) : {stops:[],total:0};
-          var rate=(typeof kmRate==='function') ? Number(kmRate(u.id)||0) : 0;
-          var total=Number(r.total||0);
-          if(!total && !(r.stops||[]).some(function(s){return Number(s.km||0)>0;})) return;
-          rows.push({data:day,collaboratore:u.name||'',userId:u.id,kmTotali:Number(total.toFixed?total.toFixed(3):total),rate:rate,rimborso:Number((total*rate).toFixed? (total*rate).toFixed(2) : total*rate),tipo:'totale_giorno'});
-          (r.stops||[]).forEach(function(st){
-            if(st.sessionStart) return;
-            rows.push({data:day,collaboratore:u.name||'',userId:u.id,sessione:st.sess?(typeof sessionLabel==='function'?sessionLabel(st.sess):st.sess):'',ora:st.ora||'',partenza:st.from||'',arrivo:st.to||'',aziendaId:st.aziendaId||'',km:Number(st.km||0),rate:rate,rimborso:Number((Number(st.km||0)*rate).toFixed(2)),prestazioni:serviceNames(st.servs||[]),tipo:'tratta'});
-          });
-        });
-      });
-      return rows.slice(-4000);
-    }catch(e){return rows;}
-  }
-
 
   function appContext(inputText){
     let ctx = {date:new Date().toISOString(), app:'Rural Vet', domain:'veterinaria buiatrica'};
@@ -2190,9 +2157,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
         ctx.interventi = interventiAll;
         ctx.interventiRecenti = interventiRecenti;
         ctx.fatture = fattureAll;
-        ctx.kmRows = kmRowsForAiContext(inputText);
-        ctx.km = ctx.kmRows;
-        ctx.kmSource = 'tab_km_routeFor_context';
+        ctx.km = [];
         ctx.config = {iva:db.cfg && db.cfg.iva, kmRates:db.cfg && db.cfg.kmRates ? db.cfg.kmRates : {}};
         ctx.aziendeSample = aziendeAll.slice(0,35).map(a => a.nome).filter(Boolean);
         ctx.aiMemoryRecent = ((db.cfg && db.cfg.aiMemory) || []).filter(m => !m.userId || !current || m.userId === current.id || m.kind === 'istruzione').slice(0,80);
@@ -2210,145 +2175,15 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
 
   function systemPrompt(){
     const s = getSettings();
-    return `Sei Rural Vet AI, copilota intelligente del gestionale veterinario Rural Vet / progetto RM.
-
-OBIETTIVO
-Aiuti l'utente a usare il gestionale tramite linguaggio naturale. Devi capire comandi su: inserimento interventi, prestazioni/servizi, clienti/aziende, dati fiscali, km/chilometri, ricavi, fatture, analisi operative, modifiche ai dati e listino/tariffario.
-
-REGOLE GENERALI
-- Devi sempre ragionare prima sui dati reali presenti nel gestionale.
-- Non inventare mai interventi, clienti, prestazioni, km, importi, fatture, P.IVA, CF, SDI o ricavi.
-- Se un dato non e' presente nel contesto, dillo chiaramente.
-- Se il comando e' ambiguo, fai una domanda breve di chiarimento.
-- Non aggiungere mai filtri non richiesti dall'utente.
-- Non trasformare una domanda economica in una ricerca interventi.
-- Non trasformare un comando di inserimento in una ricerca.
-- Per modifiche o cancellazioni, prepara sempre una proposta e attendi conferma SALVA o ELIMINA.
-- Per letture, conteggi e analisi, rispondi direttamente se hai i dati.
-- Non rispondere con frasi tipo "Non trovo interventi per Medardo Cammi · Euro Holstein · da inizio anno" se quei filtri non sono stati esplicitamente richiesti.
-
-SINONIMI IMPORTANTI
-- km, KM, chilometri, kilometri, chilometro, kilometro, strada fatta, strada percorsa, giri, giro, percorso, tratte, spostamenti, rimborsi km, rimborso chilometrico = dati del tab KM.
-- P.IVA, P IVA, PIVA, piva, partita iva, partita i.v.a., numero iva, iva cliente = campo piva.
-- CF, C.F., codice fiscale, cod fiscale = campo cf.
-- SDI, codice SDI, codice destinatario, destinatario fattura, codice fatturazione elettronica = campo sdi.
-- cliente, azienda, allevamento, stalla, azienda agricola, ditta, societa' = azienda/cliente.
-- servizio = prestazione.
-
-INTERVENTO / PRESTAZIONE
-Nel progetto RM un intervento e' una singola uscita/visita presso un cliente in una certa data e ora/sessione. Una prestazione e' una singola attivita' svolta dentro quell'intervento. Un intervento puo' contenere una o piu' prestazioni.
-Esempio: "Ho fatto da Arata un cesareo x1 e un parto x1" = 1 intervento da Arata con 2 prestazioni: Cesareo x1 e Parto x1. Non creare due interventi separati.
-Quando analizzi servizi/prestazioni devi esplodere gli interventi nelle singole prestazioni e aggregare per nome prestazione.
-
-AGGIUNTA NUOVO INTERVENTO
-Quando l'utente usa formule come "Segnami", "Segna", "Ho fatto", "Aggiungi", "Inserisci", "Registra", "Metti", "Carica", "Scrivi", "Annota", "Salvami", "Mi registri", seguite da cliente e prestazioni, interpreta come intent = add_intervention.
-Esempi:
-- "Segnami da Arata cesareo x1 e parto x1 oggi alle 10" = 1 intervento da Arata con 2 prestazioni.
-- "Ho fatto da Rossi due fecondazioni e una visita" = 1 intervento da Rossi con Fecondazione x2 e Visita x1.
-Non rispondere con liste interventi o "non trovo interventi" quando l'utente sta aggiungendo un intervento.
-Per add_intervention estrai: cliente, data, ora/sessione, collaboratore, elenco prestazioni, quantita', note, stato fatturato se indicato. Se manca cliente o prestazione chiedilo. Se manca data/ora/sessione chiedi o proponi ADESSO, oggi, ieri, Annulla.
-
-FASCE ORARIE / SESSIONI
-- mattina, stamattina, questa mattina, in mattinata, prima di pranzo = sessione mattina.
-- pomeriggio, nel pomeriggio, questo pomeriggio, dopo pranzo, primo pomeriggio, tardo pomeriggio = sessione pomeriggio.
-- sera, stasera, questa sera, in serata, verso sera, dopo cena = sessione sera.
-- notte, stanotte, questa notte, nottata, in nottata, di notte = sessione notte.
-Se l'utente indica una sessione, non chiedere obbligatoriamente l'ora precisa salvo obbligo tecnico del gestionale.
-
-KM / CHILOMETRI DAL TAB KM
-Quando l'utente chiede km, chilometri, kilometri, strada fatta, spostamenti, tratte o riepilogo km, devi usare i dati del tab KM ricevuti nel contesto: context.kmRows o context.km. Questi dati rappresentano i percorsi e gli spostamenti calcolati dal gestionale.
-Esempi da riconoscere:
-- "Quanti KM ho fatto da inizio anno?"
-- "Quanti chilometri ho fatto ieri?"
-- "Quanti kilometri questo mese?"
-- "Totale km dal 01/01 al 31/03"
-- "Riepilogo km da una data X a una data Y"
-- "Scaricami l'excel dei km dal 01/05 al 20/05"
-- "Quanta strada ho fatto questa settimana?"
-Intent corretto: km_report. Per export Excel: km_excel_export.
-Regole:
-- Usa SOLO context.kmRows/context.km/dati tab KM.
-- Non stimare i km.
-- Non calcolare distanze geografiche a occhio.
-- Non usare il campo km anagrafico dell'azienda come totale percorso, salvo che il tab KM lo abbia usato come fallback.
-- Se chiedono "da inizio anno" o "YTD", usa dal 1 gennaio dell'anno corrente a oggi.
-- Se chiedono "oggi", "ieri", "questa settimana", "questo mese", "ultimo mese", "da X a Y", filtra le righe KM per periodo.
-- Se nominano un collaboratore, filtra quel collaboratore; altrimenti dai totale generale e dettaglio per collaboratore se disponibile.
-Formato risposta per km:
-"Da inizio anno hai fatto 1.245,6 km. Spostamenti/tratte registrate: 86. Rimborso km: €684,08. Calcolo basato sul tab KM del gestionale."
-Se mancano i dati: "Non ho ricevuto dal gestionale i dati del tab KM necessari per calcolare i chilometri. Per rispondere devo ricevere le righe km/spostamenti del tab KM."
-Non dire "non trovo interventi" per domande KM.
-
-EXPORT EXCEL KM
-Se l'utente chiede un riepilogo KM da una data X a una data Y o un Excel, interpreta come km_excel_export. Devi richiedere/attivare l'export del tab KM con lo stesso contenuto del gestionale: data, collaboratore, sessione, ora, partenza, arrivo, km tratta, EUR/km, rimborso tratta, note, totali.
-Il file Excel deve avere font Garamond 12 su tutto il workbook; intestazioni colonne in grassetto e sottolineate; colonne leggibili; km numerici; importi in euro; riga totali finale.
-Se il sistema supporta file/action, restituisci un'azione di export Excel. Se non puoi generare direttamente il file, spiega che il frontend deve usare la funzione rvDownloadKmExcel del tab KM.
-
-RIEPILOGO INTERVENTI / DOVE SONO STATO
-Quando l'utente chiede "Quali interventi ho fatto ieri?", "Dove sono stato ieri?", "Che aziende ho visitato ieri?", "Cosa ho fatto ieri?", "Riepilogo interventi di ieri", "Dove sono stato oggi?", interpreta come intervention_summary.
-Devi mostrare: periodo, aziende visitate, per ogni azienda le prestazioni/servizi con quantita', ricavi per azienda, totale ricavi, numero aziende visitate, numero interventi, numero prestazioni/servizi totali.
-Esempio formato:
-"Ieri hai visitato 3 aziende.
-1. Azienda Rossi - Fecondazione x2, Visita clinica x1 - Ricavi €210,00
-2. Azienda Arata - Cesareo x1, Parto x1 - Ricavi €420,00
-Totale ricavi: €630,00. Aziende visitate: 2. Interventi: 2. Prestazioni/servizi totali: 5."
-
-CONTEGGIO PRESTAZIONI SPECIFICHE
-Quando l'utente chiede "Quanti parti ho fatto da inizio anno?", "Quanti cesarei questo mese?", "Quante fecondazioni ieri?", interpreta come count_service.
-Normalizza plurali e sinonimi: parti -> parto, cesarei -> cesareo, fecondazioni -> fecondazione, visite -> visita, ecografie -> ecografia.
-Devi leggere gli interventi del periodo, esplodere le prestazioni e sommare le quantita' della prestazione richiesta. Se disponibile indica anche ricavi generati, numero interventi e aziende.
-Formato: "Da inizio anno hai fatto 18 parti. Ricavi generati dai parti: €2.160,00. Distribuiti su 16 interventi e 12 aziende."
-
-RICAVI PER PRESTAZIONE / SERVIZIO
-Quando l'utente chiede servizi con piu' ricavi, prestazioni con piu' ricavi, top servizi, top prestazioni, ricavi per prestazione, cosa mi ha portato piu' ricavi, interpreta come revenue_by_service.
-Servizio = prestazione. Devi esplodere gli interventi multi-prestazione e aggregare per singola prestazione. Per ogni prestazione mostra ricavo assoluto, percentuale sul totale ricavi del periodo e quantita' totale. Ordina per ricavo decrescente.
-Formato:
-"Da inizio anno le prestazioni con piu' ricavi sono:
-1. Cesareo - €3.200,00 - 32,0% del totale - 10 prestazioni
-2. Fecondazione - €2.150,00 - 21,5% del totale - 43 prestazioni
-Totale ricavi periodo: €10.000,00."
-Non attribuire tutto il ricavo dell'intervento a una sola prestazione e non duplicare il totale intervento su tutte le prestazioni: ogni prestazione contribuisce con il proprio importo.
-
-TOP AZIENDE PER RICAVI
-Quando l'utente chiede "Quale azienda mi ha dato piu' ricavi nell'ultimo mese?", "cliente che mi ha fatto fatturare di piu'", "top aziende per ricavi", "migliori clienti per fatturato", interpreta come revenue_by_customer.
-Devi identificare il periodo, sommare i ricavi per azienda, ordinare per ricavo decrescente, mostrare valore assoluto e percentuale sul totale, indicare totale ricavi periodo.
-Formato:
-"Nell'ultimo mese l'azienda che ti ha dato piu' ricavi e' Azienda Rossi con €1.850,00, pari al 24,7% del totale ricavi del periodo.
-Top aziende:
-1. Azienda Rossi - €1.850,00 - 24,7%
-2. Azienda Arata - €1.320,00 - 17,6%
-Totale ricavi periodo: €7.490,00."
-
-TARIFFARIO / LISTINO PRESTAZIONI
-Quando l'utente chiede "Quanto costa un parto?", "qual e' il prezzo di un parto?", "qual e' il listino di un parto?", "prezzo parto", "costo cesareo", "tariffario ecografia", interpreta come price_lookup.
-Cerca nel listino/tariffario prestazioni del gestionale. Se l'utente indica un cliente, cerca prima il prezzo specifico per quel cliente e poi il prezzo base. Se trovi piu' voci simili, chiedi quale intende.
-Formato:
-- "Nel listino la prestazione Parto costa €120,00."
-- "Per Arata la prestazione Parto costa €110,00. Prezzo base listino: €120,00."
-Non rispondere con interventi effettuati o analisi ricavi quando l'utente chiede il prezzo/listino.
-
-PERIODI TEMPORALI
-Interpreta: oggi, ieri, questa settimana, settimana scorsa, questo mese, mese scorso, ultimo mese, da inizio anno, YTD, da X a Y, nel 2025/2026, gennaio/febbraio ecc. Se "ultimo mese" e' ambiguo, chiedi se intende ultimi 30 giorni o mese corrente.
-
-REGOLE ANTI-ERRORE FINALI
-- Non aggiungere filtri non richiesti.
-- Non rispondere "non trovo interventi" per domande su km, riepilogo km, export Excel, ricavi, top aziende, tariffario o conteggio prestazioni.
-- Per domande KM usa il tab KM/context.kmRows, non solo interventi e non anagrafica clienti.
-- Per riepilogo interventi mostra aziende visitate, prestazioni e ricavi.
-- Per "Quanti parti/cesarei/fecondazioni" conta prestazioni, non interventi.
-- Per ricavi per azienda aggrega per cliente/azienda.
-- Per tariffario cerca nel listino prestazioni.
-- Un intervento puo' contenere piu' prestazioni.
-- Servizi = prestazioni.
-
-RISPOSTE CLINICHE
-Se la domanda e' clinica e non gestionale, rispondi come assistente veterinario operativo: diagnosi probabile, urgenza, differenziali principali, cosa controllare subito, massimo 3 domande mirate. Ricorda sempre visita, protocolli, normativa, ricetta e tempi di sospensione.
-
-STILE UTENTE
-${s.style || ''}
-
-APPUNTI/PROTOCOLLI INTERNI DA USARE QUANDO RILEVANTI
-${s.knowledge || ''}`;
+    return [
+      'Sei Rural Vet AI, copilota del gestionale veterinario Rural Vet. Devi ragionare prima sui dati reali del gestionale e non inventare numeri. Puoi aiutare a: inserire interventi, modificare interventi, eliminare interventi, creare/modificare clienti, gestire listino/prezzi, emettere o aggiornare fatture, modificare impostazioni, fare analisi economiche e operative.',
+      'Per ogni modifica prepara una action strutturata e non dire mai fatto prima della conferma SALVA o ELIMINA. Nell inserimento interventi estrai cliente, prestazioni, quantita, data, ora, sessione e note; se manca data/ora chiedi ADESSO o un giorno/ora. Se ci sono ambiguita proponi una scelta numerata. Quando puoi proponi bottoni rapidi come SALVA, ELIMINA, ADESSO, Annulla.',
+      'Per dati economici rispondi con ricavi, fatture emesse, incassato, da pagare, da fatturare, top clienti/prestazioni/veterinari e periodo considerato.',
+      'Per casi clinici veterinari: diagnosi probabile, urgenza, 2-4 differenziali, cosa controllare subito, trattamento solo come orientamento prudente e massimo 3 domande mirate; conferma sempre visita, ricetta e tempi di sospensione.',
+      'Stile utente: ' + (s.style || ''),
+      'Appunti/protocolli interni da usare quando rilevanti:',
+      s.knowledge || ''
+    ].join('\n');
   }
 
   async function callBackend(text){
@@ -2830,46 +2665,6 @@ ${s.knowledge || ''}`;
     }
     if (refused.length) addMsg('system','Non importati in modalità base: ' + refused.join(', ') + '. Copia il testo negli appunti AI oppure colleghiamo un backend per PDF/DOCX.');
   };
-
-  function rvAiParseKmExcelPeriod(text){
-    const raw = String(text || '');
-    const n = norm(raw);
-    const now = new Date();
-    function isoD(d){ return dateIsoFrom(d); }
-    function startWeek(d){ const x = new Date(d); const day = (x.getDay()+6)%7; x.setDate(x.getDate()-day); return x; }
-    let start='', end='', label='';
-    const matches = [...raw.matchAll(/\b(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\b/g)];
-    function conv(m){ let y=m[3]?Number(m[3]):now.getFullYear(); if(y<100)y+=2000; return y+'-'+pad2(m[2])+'-'+pad2(m[1]); }
-    if(matches.length>=2){ start=conv(matches[0]); end=conv(matches[1]); label=start+' - '+end; }
-    else if(matches.length===1){ start=end=conv(matches[0]); label=start; }
-    if(!start && /da inizio anno|inizio anno|\bytd\b/.test(n)){ start=now.getFullYear()+'-01-01'; end=isoD(now); label='da inizio anno'; }
-    else if(!start && /ieri/.test(n)){ const d=new Date(now); d.setDate(d.getDate()-1); start=end=isoD(d); label='ieri'; }
-    else if(!start && /oggi/.test(n)){ start=end=isoD(now); label='oggi'; }
-    else if(!start && /settimana scorsa/.test(n)){ const s=startWeek(now); s.setDate(s.getDate()-7); const e=new Date(s); e.setDate(e.getDate()+6); start=isoD(s); end=isoD(e); label='settimana scorsa'; }
-    else if(!start && /questa settimana/.test(n)){ const s=startWeek(now); start=isoD(s); end=isoD(now); label='questa settimana'; }
-    else if(!start && /mese scorso/.test(n)){ const y=now.getMonth()===0?now.getFullYear()-1:now.getFullYear(); const m=now.getMonth()===0?11:now.getMonth()-1; start=isoD(new Date(y,m,1)); end=isoD(new Date(y,m+1,0)); label='mese scorso'; }
-    else if(!start && /ultimo mese|ultimi 30 giorni/.test(n)){ const s=new Date(now); s.setDate(s.getDate()-30); start=isoD(s); end=isoD(now); label='ultimo mese'; }
-    else if(!start && /questo mese/.test(n)){ start=isoD(new Date(now.getFullYear(),now.getMonth(),1)); end=isoD(now); label='questo mese'; }
-    if(!start){ start=end=isoD(now); label='oggi'; }
-    if(start>end){ const t=start; start=end; end=t; }
-    return {start,end,label};
-  }
-  async function rvAiTryKmExcel(text){
-    const n = norm(text || '');
-    const wantsKm = /(\bkm\b|chilometr|kilometr|spostament|tratt|strada|rimbors)/.test(n);
-    const wantsExcel = /(excel|xlsx|scarica|download|file|esporta|riepilogo km|resoconto km)/.test(n);
-    if(!wantsKm || !wantsExcel) return false;
-    if(typeof window.rvDownloadKmExcel !== 'function') return false;
-    const p = rvAiParseKmExcelPeriod(text);
-    window.kmStart = p.start; window.kmEnd = p.end; window.kmDay = p.end;
-    try{
-      await window.rvDownloadKmExcel();
-      addMsg('bot','Ho preparato il file Excel KM per '+p.label+'. Se il browser lo blocca, apri il tab KM e premi “Scarica Excel periodo”.');
-    }catch(e){
-      addMsg('bot','Non sono riuscito a scaricare automaticamente l’Excel KM. Apri il tab KM: ho impostato il periodo '+p.start+' - '+p.end+', poi premi “Scarica Excel periodo”. Dettaglio: '+(e&&e.message?e.message:e));
-    }
-    return true;
-  }
   window.rvAiSend = async function(){
     ensureShell(); if (busy) return;
     const input = $('rvAiInput');
@@ -2887,7 +2682,6 @@ ${s.knowledge || ''}`;
     if (isSaveCommand(text)) { window.rvAiRemoveImage(); if (pendingClientAction) savePendingClientAction(); else if (pendingMgmtAction) savePendingMgmtAction(false); else savePendingAiAction(); return; }
     if (maybeLearn(text)) { window.rvAiRemoveImage(); return; }
     if (handleClientCreation(text)) { window.rvAiRemoveImage(); return; }
-    if (await rvAiTryKmExcel(text)) { window.rvAiRemoveImage(); return; }
     // Backend-first: i nuovi comandi passano sempre dal backend AI prima di rispondere.
     setBusy(true); typing(true, 'Consulto Rural Vet AI...');
     try { lastQuickReplies = []; const reply = await smartReply(label); typing(false); addMsg('bot', reply, mergeQuickReplies(lastQuickReplies, defaultQuickReplies())); }
@@ -3317,13 +3111,13 @@ ${s.knowledge || ''}`;
     try{var rows=await rowsForPeriod(start,end);var blob=buildXlsx(rows,start,end);var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='RuralVet_KM_'+start+'_al_'+end+'.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href);},1500);}catch(err){alert(err&&err.message?err.message:'Errore nella creazione Excel KM');}finally{if(btn){btn.disabled=false;btn.textContent=old||'Scarica Excel periodo';}}
   };
   function colName(n){var s='';while(n>0){var m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
-  function cell(row,col,val,style){var ref=colName(col)+row, st=style?' s="'+style+'"':'';if(typeof val==='number'&&isFinite(val))return '<c r="'+ref+'"'+st+'><v>'+val+'</v></c>';return '<c r="'+ref+'"'+st+' t="inlineStr"><is><t>'+xmlEsc(val==null?'':val)+'</t></is></c>';}
-  function fcell(row,col,formula,value,style){var ref=colName(col)+row, st=style?' s="'+style+'"':'';var v=(typeof value==='number'&&isFinite(value))?'<v>'+value+'</v>':'';return '<c r="'+ref+'"'+st+'><f>'+xmlEsc(formula)+'</f>'+v+'</c>';}
+  function cell(row,col,val){var ref=colName(col)+row;if(typeof val==='number'&&isFinite(val))return '<c r="'+ref+'"><v>'+val+'</v></c>';return '<c r="'+ref+'" t="inlineStr"><is><t>'+xmlEsc(val==null?'':val)+'</t></is></c>';}
+  function fcell(row,col,formula,value){var ref=colName(col)+row;var v=(typeof value==='number'&&isFinite(value))?'<v>'+value+'</v>':'';return '<c r="'+ref+'"><f>'+xmlEsc(formula)+'</f>'+v+'</c>';}
   function rowXml(r,cells){return '<row r="'+r+'">'+cells.join('')+'</row>';}
   function sheetXml(rows,cols){return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+(cols||'')+'<sheetData>'+rows.join('')+'</sheetData></worksheet>';}
   function buildXlsx(rows,start,end){
     var headers=['Data','Collaboratore','Sessione','Ora','Partenza','Arrivo','Km tratta','EUR/km','Rimborso tratta','Note'];
-    var detail=[rowXml(1,headers.map(function(h,i){return cell(1,i+1,h,1);})),];
+    var detail=[rowXml(1,headers.map(function(h,i){return cell(1,i+1,h);})),];
     var totalKm=0,totalRimb=0;
     rows.forEach(function(r,idx){var rr=idx+2;totalKm+=Number(r.km||0);totalRimb+=Number(r.km||0)*Number(r.rate||0);detail.push(rowXml(rr,[cell(rr,1,r.data),cell(rr,2,r.collaboratore),cell(rr,3,r.sessione),cell(rr,4,r.ora),cell(rr,5,r.partenza),cell(rr,6,r.arrivo),cell(rr,7,Number(r.km||0)),cell(rr,8,Number(r.rate||0)),fcell(rr,9,'G'+rr+'*H'+rr,Number(r.km||0)*Number(r.rate||0)),cell(rr,10,r.note)]));});
     var lastData=rows.length+1, totalRow=rows.length+3; if(lastData<2) lastData=2;
@@ -3331,13 +3125,13 @@ ${s.knowledge || ''}`;
     var cols='<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="3" width="16" customWidth="1"/><col min="4" max="4" width="18" customWidth="1"/><col min="5" max="6" width="26" customWidth="1"/><col min="7" max="9" width="15" customWidth="1"/><col min="10" max="10" width="42" customWidth="1"/></cols>';
     var detailSheet=sheetXml(detail,cols);
     var people=Array.from(new Set(rows.map(function(r){return r.collaboratore;}))).sort(function(a,b){return a.localeCompare(b,'it');});
-    var sum=[rowXml(1,[cell(1,1,'Periodo'),cell(1,2,start+' - '+end)]),rowXml(2,[cell(2,1,'Collaboratore',1),cell(2,2,'Km totali',1),cell(2,3,'Rimborso totale',1),cell(2,4,'Tratte con km',1)])];
+    var sum=[rowXml(1,[cell(1,1,'Periodo'),cell(1,2,start+' - '+end)]),rowXml(2,[cell(2,1,'Collaboratore'),cell(2,2,'Km totali'),cell(2,3,'Rimborso totale'),cell(2,4,'Tratte con km')])];
     var dataEnd=rows.length+1; if(dataEnd<2) dataEnd=2;
     people.forEach(function(p,i){var rr=i+3, km=rows.filter(function(r){return r.collaboratore===p;}).reduce(function(s,r){return s+Number(r.km||0);},0), rim=rows.filter(function(r){return r.collaboratore===p;}).reduce(function(s,r){return s+Number(r.km||0)*Number(r.rate||0);},0), n=rows.filter(function(r){return r.collaboratore===p&&Number(r.km||0)>0;}).length;sum.push(rowXml(rr,[cell(rr,1,p),fcell(rr,2,"SUMIFS('Dettaglio KM'!$G$2:$G$"+dataEnd+",'Dettaglio KM'!$B$2:$B$"+dataEnd+",A"+rr,km),fcell(rr,3,"SUMIFS('Dettaglio KM'!$I$2:$I$"+dataEnd+",'Dettaglio KM'!$B$2:$B$"+dataEnd+",A"+rr,rim),fcell(rr,4,"COUNTIFS('Dettaglio KM'!$B$2:$B$"+dataEnd+",A"+rr+",'Dettaglio KM'!$G$2:$G$"+dataEnd+",\">0\")",n)]));});
     var sr=people.length+4, sumEnd=people.length+2; if(sumEnd<3) sumEnd=3;
     sum.push(rowXml(sr,[cell(sr,1,'TOTALE'),fcell(sr,2,'SUM(B3:B'+sumEnd+')',totalKm),fcell(sr,3,'SUM(C3:C'+sumEnd+')',totalRimb),fcell(sr,4,'SUM(D3:D'+sumEnd+')',rows.filter(function(r){return Number(r.km||0)>0;}).length)]));
     var summarySheet=sheetXml(sum,'<cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="4" width="18" customWidth="1"/></cols>');
-    var files={'[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>','_rels/.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>','xl/workbook.xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Dettaglio KM" sheetId="1" r:id="rId1"/><sheet name="Riepilogo" sheetId="2" r:id="rId2"/></sheets><calcPr calcMode="auto" fullCalcOnLoad="1"/></workbook>','xl/_rels/workbook.xml.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>','xl/styles.xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="12"/><name val="Garamond"/><family val="1"/></font><font><b/><u/><sz val="12"/><name val="Garamond"/><family val="1"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>','xl/worksheets/sheet1.xml':detailSheet,'xl/worksheets/sheet2.xml':summarySheet};
+    var files={'[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>','_rels/.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>','xl/workbook.xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Dettaglio KM" sheetId="1" r:id="rId1"/><sheet name="Riepilogo" sheetId="2" r:id="rId2"/></sheets><calcPr calcMode="auto" fullCalcOnLoad="1"/></workbook>','xl/_rels/workbook.xml.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>','xl/worksheets/sheet1.xml':detailSheet,'xl/worksheets/sheet2.xml':summarySheet};
     return new Blob([zipStore(files)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   }
   function crc32(bytes){var table=crc32.table||(crc32.table=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})());var c=0xffffffff;for(var i=0;i<bytes.length;i++)c=table[(c^bytes[i])&255]^(c>>>8);return (c^0xffffffff)>>>0;}
