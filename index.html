@@ -2830,6 +2830,91 @@ ${s.knowledge || ''}`;
     }
     if (refused.length) addMsg('system','Non importati in modalità base: ' + refused.join(', ') + '. Copia il testo negli appunti AI oppure colleghiamo un backend per PDF/DOCX.');
   };
+
+  function rvAiIsKmQuery(text){
+    var n=norm(text||'');
+    return /(\bkm\b|chilometr|kilometr|spostament|tratt|strada|rimbors)/.test(n);
+  }
+  function rvAiWantsKmExcel(text){
+    var n=norm(text||'');
+    return /(excel|xlsx|scaric|download|esport|file|resoconto|riepilogo)/.test(n) && rvAiIsKmQuery(text);
+  }
+  function rvAiIsoFromParts(d,m,y){
+    var now=new Date(), yy=y?Number(y):now.getFullYear();
+    if(yy<100) yy+=2000;
+    var dd=String(Number(d)).padStart(2,'0'), mm=String(Number(m)).padStart(2,'0');
+    return yy+'-'+mm+'-'+dd;
+  }
+  function rvAiMonthRange(offset){
+    var base=new Date(iso()+'T00:00:00');
+    var y=base.getFullYear(), m=base.getMonth()+offset;
+    var first=new Date(y,m,1), last=new Date(y,m+1,0);
+    return {start:first.toISOString().slice(0,10), end:last.toISOString().slice(0,10)};
+  }
+  function rvAiWeekRange(offset){
+    var d=new Date(iso()+'T00:00:00');
+    var day=d.getDay()||7;
+    d.setDate(d.getDate()-day+1+(offset*7));
+    var start=new Date(d), end=new Date(d); end.setDate(start.getDate()+6);
+    var today=new Date(iso()+'T00:00:00'); if(offset===0 && end>today) end=today;
+    return {start:start.toISOString().slice(0,10), end:end.toISOString().slice(0,10)};
+  }
+  function rvAiDateRangeFromText(text){
+    var raw=String(text||''), n=norm(raw), today=iso();
+    var m;
+    m=raw.match(/(?:dal|da)\s*(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\s*(?:al|a|fino al|fino a)\s*(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/i);
+    if(m) return {start:rvAiIsoFromParts(m[1],m[2],m[3]||m[6]), end:rvAiIsoFromParts(m[4],m[5],m[6]||m[3])};
+    m=raw.match(/(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/);
+    if(m){var one=rvAiIsoFromParts(m[1],m[2],m[3]); return {start:one,end:one};}
+    if(/ieri/.test(n)){var d=new Date(today+'T00:00:00');d.setDate(d.getDate()-1);var x=d.toISOString().slice(0,10);return {start:x,end:x};}
+    if(/oggi/.test(n)) return {start:today,end:today};
+    if(/settimana\s+scorsa/.test(n)) return rvAiWeekRange(-1);
+    if(/questa\s+settimana|settimana\s+corrente/.test(n)) return rvAiWeekRange(0);
+    if(/mese\s+scorso/.test(n)) return rvAiMonthRange(-1);
+    if(/ultimo\s+mese|ultimi\s+30\s+giorni/.test(n)){var d=new Date(today+'T00:00:00');d.setDate(d.getDate()-30);return {start:d.toISOString().slice(0,10),end:today};}
+    if(/questo\s+mese|mese\s+corrente/.test(n)) return rvAiMonthRange(0);
+    if(/inizio\s+anno|da\s+gennaio|ytd/.test(n)){return {start:(new Date().getFullYear())+'-01-01',end:today};}
+    var mesi={gennaio:0,febbraio:1,marzo:2,aprile:3,maggio:4,giugno:5,luglio:6,agosto:7,settembre:8,ottobre:9,novembre:10,dicembre:11};
+    for(var k in mesi){if(n.indexOf(k)>=0){var y=(new Date()).getFullYear();var first=new Date(y,mesi[k],1),last=new Date(y,mesi[k]+1,0);return {start:first.toISOString().slice(0,10),end:last.toISOString().slice(0,10)};}}
+    return {start:today,end:today};
+  }
+  async function rvAiBuildKmRows(start,end){
+    if(typeof rowsForPeriod==='function') return await rowsForPeriod(start,end);
+    throw new Error('Funzione righe KM non disponibile');
+  }
+  function rvAiPeriodLabel(r){
+    if(r.start===r.end) return safeFmt(r.start);
+    if(r.start.slice(5)==='01-01' && r.end===iso()) return 'da inizio anno';
+    return safeFmt(r.start)+' - '+safeFmt(r.end);
+  }
+  async function rvAiHandleKmLocally(text){
+    if(!rvAiIsKmQuery(text)) return null;
+    var range=rvAiDateRangeFromText(text);
+    try{
+      var rows=await rvAiBuildKmRows(range.start,range.end);
+      var tratte=rows.filter(function(r){return String(r.note||'')!=='Partenza' && Number(r.km||0)>0;});
+      var totalKm=tratte.reduce(function(s,r){return s+Number(r.km||0);},0);
+      var totalRimb=tratte.reduce(function(s,r){return s+Number(r.km||0)*Number(r.rate||0);},0);
+      var byUser={};
+      tratte.forEach(function(r){var k=r.collaboratore||'Collaboratore';byUser[k]=byUser[k]||{km:0,rimb:0,n:0};byUser[k].km+=Number(r.km||0);byUser[k].rimb+=Number(r.km||0)*Number(r.rate||0);byUser[k].n+=1;});
+      if(rvAiWantsKmExcel(text)){
+        var blob=buildXlsx(rows,range.start,range.end), a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);a.download='RuralVet_KM_'+range.start+'_al_'+range.end+'.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href);},1500);
+        return 'Ho preparato e scaricato l’Excel KM per il periodo '+rvAiPeriodLabel(range)+'.\n\nTotale km: '+totalKm.toFixed(1)+' km\nSpostamenti/tratte: '+tratte.length+'\nRimborso stimato: '+safeEur(totalRimb)+'\n\nFile generato con font Garamond 12 e intestazioni in grassetto e sottolineate.';
+      }
+      if(!tratte.length) return 'Nel periodo '+rvAiPeriodLabel(range)+' non risultano spostamenti KM nel tab KM.';
+      var lines=Object.keys(byUser).sort().map(function(k){var v=byUser[k];return '- '+k+': '+v.km.toFixed(1)+' km, '+v.n+' tratte, rimborso '+safeEur(v.rimb);});
+      var out='Nel periodo '+rvAiPeriodLabel(range)+' hai fatto '+totalKm.toFixed(1)+' km.';
+      out+='\nSpostamenti/tratte registrate: '+tratte.length+'.';
+      out+='\nRimborso km: '+safeEur(totalRimb)+'.';
+      if(lines.length>1) out+='\n\nDettaglio per collaboratore:\n'+lines.join('\n');
+      out+='\n\nCalcolo basato sul tab KM del gestionale.';
+      return out;
+    }catch(err){
+      return 'Non riesco a calcolare i KM dal tab KM. Dettaglio tecnico: '+(err&&err.message?err.message:err);
+    }
+  }
+
   window.rvAiSend = async function(){
     ensureShell(); if (busy) return;
     const input = $('rvAiInput');
@@ -2847,6 +2932,14 @@ ${s.knowledge || ''}`;
     if (isSaveCommand(text)) { window.rvAiRemoveImage(); if (pendingClientAction) savePendingClientAction(); else if (pendingMgmtAction) savePendingMgmtAction(false); else savePendingAiAction(); return; }
     if (maybeLearn(text)) { window.rvAiRemoveImage(); return; }
     if (handleClientCreation(text)) { window.rvAiRemoveImage(); return; }
+    // Gestione KM locale: usa davvero il tab KM prima del backend.
+    if (rvAiIsKmQuery(text)) {
+      setBusy(true); typing(true, 'Calcolo i KM dal tab KM...');
+      try { const kmReply = await rvAiHandleKmLocally(text); typing(false); addMsg('bot', kmReply || 'Non riesco a calcolare i KM.'); }
+      catch(e) { typing(false); addMsg('bot','Non riesco a calcolare i KM dal tab KM. Dettaglio tecnico: ' + (e && e.message ? e.message : e)); }
+      finally { window.rvAiRemoveImage(); setBusy(false); }
+      return;
+    }
     // Backend-first: i nuovi comandi passano sempre dal backend AI prima di rispondere.
     setBusy(true); typing(true, 'Consulto Rural Vet AI...');
     try { lastQuickReplies = []; const reply = await smartReply(label); typing(false); addMsg('bot', reply, mergeQuickReplies(lastQuickReplies, defaultQuickReplies())); }
