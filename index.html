@@ -1037,7 +1037,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   let pendingDeleteAction = null;
   let pendingChoiceAction = null;
   let pendingMgmtAction = null;
-  let pendingInterventionDraft = null;
+  let pendingAnalyticsQuery = null;
   let lastQuickReplies = [];
   let busy = false;
   let messages = [];
@@ -1981,7 +1981,6 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     return true;
   }
   function defaultQuickReplies(){
-    if (pendingInterventionDraft) return ['Annulla'];
     if (pendingChoiceAction) return (pendingChoiceAction.options || []).slice(0,8).map((_,i)=>String(i+1)).concat(['Annulla']);
     if (pendingAiAction && actionNeedsWhen(pendingAiAction)) return ['ADESSO','oggi 14:30','ieri 09:00','Annulla'];
     if (pendingAiAction) return ['SALVA','Annulla'];
@@ -1996,10 +1995,9 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     return out.slice(0,8);
   }
   function isCancelCommand(text){ return /^\s*(annulla|cancella|lascia stare|stop|no|non salvare|reset)\s*\.?\s*$/i.test(String(text || '')); }
-  function clearPendingActions(){ pendingAiAction = null; pendingClientAction = null; pendingMgmtAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; pendingInterventionDraft = null; addMsg('bot','Ok, ho annullato l’operazione in corso.'); }
+  function clearPendingActions(){ pendingAiAction = null; pendingClientAction = null; pendingMgmtAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; addMsg('bot','Ok, ho annullato l’operazione in corso.'); }
   function normalizeAiAction(action, sourceText){
     if (!action) return null;
-    if (action.type === 'intervention_draft' || action.type === 'continue_intervention_draft') return action;
     const t = String(action.type || '');
     if (['delete_intervention','remove_intervention','cancel_intervention','delete_activity','remove_activity'].includes(t)) return normalizeDeleteAction(action, sourceText);
     if (action.type === 'create_client' || action.type === 'create_customer' || action.type === 'add_client' || action.type === 'add_customer') return normalizeClientAction(action, sourceText);
@@ -2046,7 +2044,6 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     });
     saveCloud();
     pendingAiAction = null;
-    pendingInterventionDraft = null;
     if (rvAiVoiceLoop) stopVoiceLoop();
     if (typeof go === 'function') go('oggi');
     addMsg('bot', saved === 1 ? 'Fatto. Ho salvato l’intervento nel gestionale.' : 'Fatto. Ho salvato ' + saved + ' interventi nel gestionale.');
@@ -2129,19 +2126,18 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
         });
         ctx.counts = {aziende:aziendeAll.length, interventi:(db.int||[]).length, prestazioni:prestazioniAll.length, fatture:(db.fatture||[]).length, memoria_ai:(db.cfg && db.cfg.aiMemory ? db.cfg.aiMemory.length : 0)};
         ctx.users = usersAll;
-        // Per il wizard AI serve l'anagrafica completa: se filtriamo troppo, l'AI non trova aziende esistenti.
-        ctx.aziende = aziendeAll.slice(0,5000);
-        ctx.prestazioni = prestazioniAll.slice(0,3000);
+        ctx.aziende = (aziendeHit.length ? aziendeHit : aziendeAll).slice(0,900);
+        ctx.prestazioni = (prestHit.length ? prestHit : prestazioniAll).slice(0,900);
         ctx.interventi = interventiAll;
         ctx.interventiRecenti = interventiRecenti;
         ctx.fatture = fattureAll;
         ctx.km = [];
         ctx.config = {iva:db.cfg && db.cfg.iva, kmRates:db.cfg && db.cfg.kmRates ? db.cfg.kmRates : {}};
+        if (pendingAnalyticsQuery) ctx.pendingAnalyticsQuery = pendingAnalyticsQuery;
         ctx.aziendeSample = aziendeAll.slice(0,35).map(a => a.nome).filter(Boolean);
         ctx.aiMemoryRecent = ((db.cfg && db.cfg.aiMemory) || []).filter(m => !m.userId || !current || m.userId === current.id || m.kind === 'istruzione').slice(0,80);
       }
     } catch(e){ ctx.contextError = String(e && e.message ? e.message : e); }
-    if (pendingInterventionDraft) ctx.pendingInterventionDraft = pendingInterventionDraft;
     return ctx;
   }
 
@@ -2183,13 +2179,16 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     saveBackendLearnings(data.learn || data.learning || data.memories);
     const arrActions = Array.isArray(data.actions) ? data.actions.filter(Boolean) : [];
     const onlyCreateInts = arrActions.length && arrActions.every(x => !x.type || String(x.type) === 'create_intervention');
-    if (data.clearDraft) pendingInterventionDraft = null;
     const actionCandidate = data.action || (arrActions.length ? (onlyCreateInts ? {type:'create_interventions', items:arrActions} : {type:'batch_management_actions', items:arrActions}) : null);
-    if (data.clearDraft) pendingInterventionDraft = null;
-    if (actionCandidate && actionCandidate.type === 'intervention_draft') {
-      pendingInterventionDraft = actionCandidate.draft || actionCandidate;
-      pendingAiAction = null; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null;
-    } else if (actionCandidate) {
+    if (data.clearDraft && pendingAnalyticsQuery) pendingAnalyticsQuery = null;
+    if (data.action && data.action.type === 'analytics_query') {
+      pendingAnalyticsQuery = data.action.query || data.action;
+    } else if (data.ui && data.ui.mode === 'analytics' && !data.action && !data.clearDraft) {
+      // Mantieni eventuale query analytics finché il backend non la chiude esplicitamente.
+    } else if (!/^(annulla)$/i.test(String(text || '').trim()) && !(data.ui && data.ui.mode === 'analytics')) {
+      pendingAnalyticsQuery = null;
+    }
+    if (actionCandidate && !(actionCandidate.type === 'analytics_query')) {
       const normAction = normalizeAiAction(actionCandidate, text);
       if (normAction && normAction.type === 'create_client') { pendingClientAction = normAction; pendingAiAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; }
       else if (normAction && normAction.type === 'delete_intervention') { pendingDeleteAction = normAction; pendingAiAction = null; pendingClientAction = null; pendingChoiceAction = null; pendingMgmtAction = null; }
@@ -2197,12 +2196,13 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       else if (normAction && normAction.type === 'choose_management') { pendingChoiceAction = normAction; pendingDeleteAction = null; pendingAiAction = null; pendingClientAction = null; pendingMgmtAction = null; }
       else if (isMgmtAction(normAction)) { pendingMgmtAction = normAction; pendingAiAction = null; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; }
       else { pendingAiAction = normAction; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; const choice = normAction ? disambiguateCreateAction(text, normAction) : null; if (choice) pendingChoiceAction = choice; }
-    } else if (!/^(salva|conferma|ok salva|si salva|sì salva|registra|elimina|cancella)$/i.test(String(text || '').trim())) {
+    } else if (!(actionCandidate && actionCandidate.type === 'analytics_query') && !/^(salva|conferma|ok salva|si salva|sì salva|registra|elimina|cancella)$/i.test(String(text || '').trim())) {
       pendingAiAction = null;
       pendingClientAction = null;
       pendingDeleteAction = null;
       pendingChoiceAction = null;
       pendingMgmtAction = null;
+      pendingAnalyticsQuery = null;
     }
     let reply = data.reply || data.answer || data.message || (data.output && String(data.output)) || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content);
     if (pendingClientAction && !reply) reply = describeClientAction(pendingClientAction);
@@ -2639,7 +2639,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     if (pendingAiAction && actionNeedsWhen(pendingAiAction) && handlePendingWhenAnswer(text)) { window.rvAiRemoveImage(); return; }
     if (isDeleteConfirmCommand(text) && pendingDeleteAction) { window.rvAiRemoveImage(); savePendingDeleteAction(); return; }
     if (isDeleteConfirmCommand(text) && pendingMgmtAction && mgmtNeedsDeleteConfirm(pendingMgmtAction)) { window.rvAiRemoveImage(); savePendingMgmtAction(true); return; }
-    if (isSaveCommand(text) && (pendingClientAction || pendingMgmtAction || pendingAiAction)) { window.rvAiRemoveImage(); if (pendingClientAction) savePendingClientAction(); else if (pendingMgmtAction) savePendingMgmtAction(false); else savePendingAiAction(); return; }
+    if (isSaveCommand(text)) { window.rvAiRemoveImage(); if (pendingClientAction) savePendingClientAction(); else if (pendingMgmtAction) savePendingMgmtAction(false); else savePendingAiAction(); return; }
     if (maybeLearn(text)) { window.rvAiRemoveImage(); return; }
     if (handleClientCreation(text)) { window.rvAiRemoveImage(); return; }
     // Backend-first: i nuovi comandi passano sempre dal backend AI prima di rispondere.
