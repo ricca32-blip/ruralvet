@@ -1907,6 +1907,11 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
         return p ? {id:Number(p.id), qty:Math.max(1, Number(x.qty || x.quantita || x.quantity || 1) || 1), name:p.nome} : null;
       }).filter(Boolean);
     }
+    if (u.replaceService && u.replaceService.fromId !== undefined && u.replaceService.toId !== undefined) {
+      const fromP = findService({id:u.replaceService.fromId, name:u.replaceService.fromName});
+      const toP = findService({id:u.replaceService.toId, name:u.replaceService.toName});
+      if (fromP && toP && String(fromP.id) !== String(toP.id)) out.replaceService = {fromId:Number(fromP.id), toId:Number(toP.id), fromName:fromP.nome, toName:toP.nome};
+    }
     out.serviceMode = /\baggiungi\b/.test(norm(sourceText || action.query || '')) ? 'append' : 'replace';
     return out;
   }
@@ -2036,6 +2041,13 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
         if (u.serviceMode === 'append') {
           u.servs.forEach(ns => { const old = (i.servs || []).find(s => String(s.id) === String(ns.id)); if (old) old.qty = Number(old.qty || 1) + Number(ns.qty || 1); else (i.servs = i.servs || []).push({id:Number(ns.id), qty:Number(ns.qty || 1)}); });
         } else i.servs = u.servs.map(s => ({id:Number(s.id), qty:Number(s.qty || 1)}));
+      }
+      if (u.replaceService && u.replaceService.fromId !== undefined) {
+        const target = (i.servs || []).find(s => String(s.id) === String(u.replaceService.fromId));
+        if (!target) return 'In questo intervento non trovo la prestazione da sostituire (' + (u.replaceService.fromName || u.replaceService.fromId) + '). Non ho modificato nulla.';
+        const dupe = (i.servs || []).find(s => String(s.id) === String(u.replaceService.toId));
+        if (dupe && dupe !== target) { dupe.qty = Number(dupe.qty || 1) + Number(target.qty || 1); i.servs = i.servs.filter(s => s !== target); }
+        else target.id = Number(u.replaceService.toId);
       }
       if (u.note) i.note = (i.note ? i.note + ' | ' : '') + u.note;
       if (u.fatt !== undefined) i.fatt = !!u.fatt;
@@ -3273,6 +3285,609 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   function crc32(bytes){var table=crc32.table||(crc32.table=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})());var c=0xffffffff;for(var i=0;i<bytes.length;i++)c=table[(c^bytes[i])&255]^(c>>>8);return (c^0xffffffff)>>>0;}
   function pushU16(a,n){a.push(n&255,(n>>>8)&255);}function pushU32(a,n){a.push(n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255);}function dosDate(d){return ((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();}function dosTime(d){return (d.getHours()<<11)|(d.getMinutes()<<5)|(Math.floor(d.getSeconds()/2));}
   function zipStore(files){var enc=new TextEncoder(),out=[],central=[],offset=0,now=new Date(),time=dosTime(now),date=dosDate(now);Object.entries(files).forEach(function(ent){var name=ent[0],xml=ent[1],nameB=enc.encode(name),data=enc.encode(xml),crc=crc32(data),local=[];pushU32(local,0x04034b50);pushU16(local,20);pushU16(local,0x0800);pushU16(local,0);pushU16(local,time);pushU16(local,date);pushU32(local,crc);pushU32(local,data.length);pushU32(local,data.length);pushU16(local,nameB.length);pushU16(local,0);out.push.apply(out,local);out.push.apply(out,nameB);out.push.apply(out,data);var c=[];pushU32(c,0x02014b50);pushU16(c,20);pushU16(c,20);pushU16(c,0x0800);pushU16(c,0);pushU16(c,time);pushU16(c,date);pushU32(c,crc);pushU32(c,data.length);pushU32(c,data.length);pushU16(c,nameB.length);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU16(c,0);pushU32(c,0);pushU32(c,offset);central.push.apply(central,c);central.push.apply(central,nameB);offset+=local.length+nameB.length+data.length;});var centralOffset=out.length;out.push.apply(out,central);var end=[];pushU32(end,0x06054b50);pushU16(end,0);pushU16(end,0);pushU16(end,Object.keys(files).length);pushU16(end,Object.keys(files).length);pushU32(end,central.length);pushU32(end,centralOffset);pushU16(end,0);out.push.apply(out,end);return new Uint8Array(out);}
+})();
+</script>
+
+<script id="rv-cloud-proxy-patch-v89">
+/* v8.9 — Sync cloud tramite backend Rural Vet AI.
+   La master key JSONBin non deve più vivere nell'HTML: il salvataggio e il
+   caricamento passano dal backend (/api/db/save, /api/db/load) che tiene la
+   chiave in variabili ambiente. Se il backend non è configurato, si torna in
+   automatico al vecchio canale diretto (SYNC) così nulla si rompe oggi.
+   Riusa le funzioni già esistenti: rvEnsureMeta, saveLocalCopy, loadLocalCopy,
+   mergeCloudRecord, setSaveState, RV_SAVE, migrate. */
+(function(){
+  'use strict';
+  function backendBase(){
+    try {
+      var ep = (window.RV_AI_ENDPOINT || 'https://rural-vet-ai.onrender.com/api/vet-ai-chat');
+      try { var raw = localStorage.getItem('manual-rural-vet-ai'); if (raw) { var s = JSON.parse(raw); if (s && s.endpoint) ep = s.endpoint; } } catch(e){}
+      return String(ep).replace(/\/api\/.*$/, '');
+    } catch(e){ return ''; }
+  }
+  var RV_CLOUD = { mode: null, checking: null };
+  function detectMode(){
+    if (RV_CLOUD.mode) return Promise.resolve(RV_CLOUD.mode);
+    if (RV_CLOUD.checking) return RV_CLOUD.checking;
+    var base = backendBase();
+    if (!base) { RV_CLOUD.mode = 'direct'; return Promise.resolve('direct'); }
+    RV_CLOUD.checking = fetch(base + '/api/db/ping', { method:'GET' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(j){ RV_CLOUD.mode = (j && j.ok && j.configured) ? 'backend' : 'direct'; return RV_CLOUD.mode; })
+      .catch(function(){ RV_CLOUD.mode = 'direct'; return 'direct'; })
+      .finally(function(){ RV_CLOUD.checking = null; });
+    return RV_CLOUD.checking;
+  }
+  function directConfigured(){ return !!(typeof SYNC !== 'undefined' && SYNC && SYNC.binId && SYNC.apiKey); }
+  function cloudGetLatest(){
+    return detectMode().then(function(mode){
+      if (mode === 'backend') {
+        return fetch(backendBase() + '/api/db/load').then(function(r){
+          if (!r.ok) throw new Error('cloud latest ' + r.status);
+          return r.json();
+        });
+      }
+      if (!directConfigured()) throw new Error('cloud non configurato');
+      return fetch('https://api.jsonbin.io/v3/b/' + SYNC.binId + '/latest', { headers:{ 'X-Master-Key': SYNC.apiKey } }).then(function(r){
+        if (!r.ok) throw new Error('cloud latest ' + r.status);
+        return r.json();
+      });
+    });
+  }
+  function cloudPutDb(dbObj){
+    return detectMode().then(function(mode){
+      if (mode === 'backend') {
+        return fetch(backendBase() + '/api/db/save', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ db: dbObj }) }).then(function(r){
+          if (!r.ok) throw new Error('cloud put ' + r.status);
+          return r.json().catch(function(){ return {}; });
+        });
+      }
+      if (!directConfigured()) throw new Error('cloud non configurato');
+      return fetch('https://api.jsonbin.io/v3/b/' + SYNC.binId, { method:'PUT', headers:{ 'Content-Type':'application/json', 'X-Master-Key': SYNC.apiKey }, body: JSON.stringify(dbObj) }).then(function(r){
+        if (!r.ok) throw new Error('cloud put ' + r.status);
+        return r.json().catch(function(){ return {}; });
+      });
+    });
+  }
+  function anyCloudAvailable(){ return RV_CLOUD.mode === 'backend' || directConfigured(); }
+
+  window.saveCloud = function saveCloud(){
+    rvEnsureMeta();
+    rvStampChanged();               /* marca i record modificati PRIMA di aggiornare lo snapshot */
+    saveLocalCopy('pre-cloud-save');
+    if (RV_SAVE.saving) { RV_SAVE.dirty = true; setSaveState('Salvataggio in coda…','var(--amb)'); return Promise.resolve(false); }
+    RV_SAVE.saving = true;
+    setSaveState('Salvataggio…','var(--amb)');
+    return detectMode().then(function(){
+      if (!anyCloudAvailable()) { throw new Error('cloud non configurato'); }
+      return cloudGetLatest();
+    }).then(function(j){
+      if (j && j.record) mergeCloudRecord(j.record);
+      rvEnsureMeta();
+      db.meta.lastSavedAt = rvNow();
+      return cloudPutDb(db);
+    }).then(function(){
+      RV_SAVE.saving = false; RV_SAVE.lastError = null;
+      saveLocalCopy('cloud-saved');
+      var tm = new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+      setSaveState('✓ Salvato ' + tm + (RV_CLOUD.mode === 'backend' ? '' : ' (canale diretto)'), 'var(--g2)');
+      if (RV_SAVE.dirty) { RV_SAVE.dirty = false; return window.saveCloud(); }
+      return true;
+    }).catch(function(err){
+      RV_SAVE.saving = false; RV_SAVE.lastError = err;
+      saveLocalCopy('cloud-error-local-copy');
+      setSaveState(String(err && err.message).indexOf('configurato') >= 0 ? '⚠ Cloud non configurato' : '⚠ Non salvato in cloud', 'var(--red)');
+      console.error('RuralVet save error', err);
+      return false;
+    });
+  };
+
+  window.loadCloud = function loadCloud(cb){
+    setSaveState('Caricamento cloud…','var(--amb)');
+    detectMode().then(function(){
+      if (!anyCloudAvailable()) throw new Error('cloud non configurato');
+      return cloudGetLatest();
+    }).then(function(j){
+      if (j && j.record && j.record.aziende) {
+        db = j.record; migrate(); saveLocalCopy('cloud-loaded');
+        var when = db.meta && db.meta.lastSavedAt ? new Date(db.meta.lastSavedAt).toLocaleString('it-IT') : '';
+        setSaveState('✓ Cloud caricato' + (when ? ' · ' + when : '') + (RV_CLOUD.mode === 'backend' ? '' : ' (canale diretto)'), 'var(--g2)');
+      }
+      cb && cb();
+    }).catch(function(err){
+      var loc = loadLocalCopy();
+      if (loc && loc.db) { db = loc.db; migrate(); setSaveState('Offline · copia locale','var(--amb)'); }
+      else { setSaveState('⚠ Cloud non raggiungibile','var(--red)'); }
+      console.error('RuralVet load error', err);
+      cb && cb();
+    });
+  };
+
+  /* v8.9 — Merge multi-dispositivo con timestamp per record.
+     Prima: a parità di id vinceva SEMPRE la copia locale, anche se non era
+     stata toccata, sovrascrivendo in silenzio le modifiche fatte da un altro
+     dispositivo. Ora: prima di ogni salvataggio marco updatedAt solo sui
+     record davvero cambiati rispetto all'ultimo stato sincronizzato
+     (snapshot 'cloud-saved'/'cloud-loaded' già esistente), e nel merge vince
+     il record con updatedAt più recente. Se nessuno dei due ha il timestamp
+     si mantiene il comportamento storico (vince il locale). */
+  function rvRecNoStamp(r){ if (!r || typeof r !== 'object') return r; var c = {}; for (var k in r) { if (k !== 'updatedAt') c[k] = r[k]; } return c; }
+  function rvSameRec(a, b){ try { return JSON.stringify(rvRecNoStamp(a)) === JSON.stringify(rvRecNoStamp(b)); } catch(e){ return false; } }
+  function rvStampChanged(){
+    try {
+      var snap = loadLocalCopy();
+      var base = snap && snap.db ? snap.db : null;
+      var now = Date.now();
+      ['aziende','prest','int','fatture'].forEach(function(key){
+        var localArr = (db && db[key]) || [];
+        var baseArr = (base && base[key]) || [];
+        var baseMap = {};
+        baseArr.forEach(function(r){ if (r && r.id !== undefined) baseMap[String(r.id)] = r; });
+        localArr.forEach(function(r){
+          if (!r || r.id === undefined) return;
+          var prev = baseMap[String(r.id)];
+          if (!prev) { if (!r.updatedAt) r.updatedAt = now; return; }   // nuovo record locale
+          if (!rvSameRec(prev, r)) r.updatedAt = now;                    // modificato davvero
+        });
+      });
+    } catch(e){ console.warn('rvStampChanged', e); }
+  }
+  window.mergeArr = function mergeArr(local, remote, tomb){
+    var out = new Map();
+    (remote || []).forEach(function(x){ if (x && x.id !== undefined && !(tomb && tomb[x.id])) out.set(String(x.id), x); });
+    (local || []).forEach(function(x){
+      if (!x || x.id === undefined) return;
+      var key = String(x.id);
+      var r = out.get(key);
+      if (!r) { out.set(key, x); return; }
+      var lt = Number(x.updatedAt) || 0, rt = Number(r.updatedAt) || 0;
+      if (lt >= rt) out.set(key, x); // parità o nessun timestamp → comportamento storico (locale)
+      // altrimenti tengo il remoto, più recente
+    });
+    return Array.from(out.values());
+  };
+
+  /* esposto solo per i test automatici */
+  window.__rvSyncTest = { stampChanged: rvStampChanged, mergeArr: function(a,b,t){ return window.mergeArr(a,b,t); } };
+
+  /* Guardia fatture: niente fatture vuote e niente doppia emissione da doppio click. */
+  var prevEmitFatt = window.emitFatt;
+  var emitBusy = false;
+  if (typeof prevEmitFatt === 'function') {
+    window.emitFatt = function emitFatt(aid){
+      if (emitBusy) return;
+      var arr = (db.int || []).filter(function(i){ return !i.fatt && i.allId == aid; });
+      if (!arr.length) { alert('Nessun intervento da fatturare per questo cliente.'); return; }
+      emitBusy = true;
+      try { prevEmitFatt(aid); } finally { setTimeout(function(){ emitBusy = false; }, 1200); }
+    };
+  }
+})();
+</script>
+
+<style id="rv-v810-ux-style">
+/* v8.10 — Rifiniture UX/UI (additive, nessuna sostituzione di layout) */
+
+/* Toast non bloccanti */
+#rvToastHost{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:99999;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:min(94vw,520px)}
+.rvToast{pointer-events:auto;display:flex;align-items:center;gap:12px;background:#12301a;color:#fff;border-radius:14px;padding:12px 16px;font-weight:700;font-size:14px;box-shadow:0 14px 40px rgba(18,48,26,.35);max-width:100%;animation:rvToastIn .22s ease-out}
+.rvToast.err{background:#7a1f1f}
+.rvToast.ok{background:#1f5a30}
+.rvToast button{border:0;border-radius:999px;background:rgba(255,255,255,.16);color:#fff;font-weight:900;padding:7px 14px;font-size:13px;cursor:pointer;min-height:32px}
+.rvToast button:hover{background:rgba(255,255,255,.28)}
+@keyframes rvToastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion: reduce){.rvToast{animation:none}}
+
+/* Tocco e leggibilità mobile */
+.btn,button.btn{min-height:42px}
+@media (max-width:640px){
+  .btn,button.btn{min-height:46px}
+  .table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+  input,select,textarea{font-size:16px !important} /* evita lo zoom automatico iOS */
+}
+.table th{position:sticky;top:0;z-index:1}
+
+/* Focus visibile per tastiera e accessibilità */
+button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid #8fbf9a;outline-offset:2px;border-radius:10px}
+
+/* Stato disabilitato coerente per le guardie anti doppio click */
+.btn[data-rv-busy="1"]{opacity:.55;pointer-events:none}
+</style>
+<script id="rv-v810-ux-script">
+/* v8.10 — Toast, annulla eliminazione, guardie doppio click, ESC sulle modali. */
+(function(){
+  'use strict';
+
+  /* ---------- Toast ---------- */
+  function toastHost(){
+    var h = document.getElementById('rvToastHost');
+    if (!h) { h = document.createElement('div'); h.id = 'rvToastHost'; document.body.appendChild(h); }
+    return h;
+  }
+  window.rvToast = function(message, opts){
+    opts = opts || {};
+    try {
+      var host = toastHost();
+      var el = document.createElement('div');
+      el.className = 'rvToast' + (opts.kind === 'error' ? ' err' : (opts.kind === 'ok' ? ' ok' : ''));
+      el.setAttribute('role','status');
+      el.setAttribute('aria-live','polite');
+      var span = document.createElement('span');
+      span.textContent = String(message || '');
+      el.appendChild(span);
+      var closed = false;
+      function close(){ if (closed) return; closed = true; try { host.removeChild(el); } catch(e){} }
+      if (opts.actionLabel && typeof opts.onAction === 'function') {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = opts.actionLabel;
+        b.onclick = function(){ close(); try { opts.onAction(); } catch(e){ console.error(e); } };
+        el.appendChild(b);
+      }
+      host.appendChild(el);
+      setTimeout(close, Math.max(1500, Number(opts.ms) || 4500));
+      return close;
+    } catch(e){ console.warn('rvToast', e); }
+  };
+
+  /* ---------- Annulla eliminazione intervento (finestra di 6 secondi) ---------- */
+  var prevDeleteIntervento = window.deleteIntervento;
+  if (typeof prevDeleteIntervento === 'function') {
+    window.deleteIntervento = function deleteIntervento(id){
+      var rec = (db.int || []).find(function(x){ return x.id === id; });
+      if (!rec || (typeof canManageIntervento === 'function' && !canManageIntervento(rec))) { alert('Non puoi eliminare questo intervento'); return; }
+      if (!confirm('Eliminare intervento?')) return;
+      var copy = JSON.parse(JSON.stringify(rec));
+      rvEnsureMeta();
+      db.deleted.int[String(id)] = Date.now();
+      db.int = db.int.filter(function(x){ return x.id !== id; });
+      saveCloud();
+      if (tab === 'storico') { if (typeof rStorico === 'function') rStorico(); } else { if (typeof go === 'function') go('oggi'); }
+      window.rvToast('Intervento eliminato.', {
+        actionLabel: 'Annulla',
+        ms: 6000,
+        onAction: function(){
+          try {
+            rvEnsureMeta();
+            delete db.deleted.int[String(id)];
+            if (!(db.int || []).some(function(x){ return String(x.id) === String(id); })) db.int.push(copy);
+            copy.updatedAt = Date.now(); // così il ripristino vince anche nel merge multi-dispositivo
+            saveCloud();
+            if (tab === 'storico') { if (typeof rStorico === 'function') rStorico(); } else if (typeof go === 'function') go(tab || 'oggi');
+            window.rvToast('Intervento ripristinato.', { kind:'ok', ms: 2500 });
+          } catch(e){ console.error('undo delete', e); alert('Non sono riuscito a ripristinare l\u2019intervento.'); }
+        }
+      });
+    };
+  }
+
+  /* ---------- Feedback di salvataggio come toast (oltre all'indicatore) ---------- */
+  var prevSetSaveState = window.setSaveState;
+  if (typeof prevSetSaveState === 'function') {
+    var lastErrToast = 0;
+    window.setSaveState = function(t, c){
+      prevSetSaveState(t, c);
+      try {
+        if (/^⚠/.test(String(t || '')) && Date.now() - lastErrToast > 15000) {
+          lastErrToast = Date.now();
+          window.rvToast(String(t).replace(/^⚠\s*/, '') + ' — i dati restano nella copia locale del dispositivo.', { kind:'error', ms: 6000 });
+        }
+      } catch(e){}
+    };
+  }
+
+  /* ---------- Guardia generica anti doppio click sui bottoni primari ---------- */
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest ? ev.target.closest('.btn') : null;
+    if (!b || b.getAttribute('data-rv-busy') === '1') return;
+    // solo azioni potenzialmente "scriventi": bottoni dentro le modali o marcati red
+    var inModal = b.closest && b.closest('#sheet');
+    if (!inModal && !b.classList.contains('red')) return;
+    b.setAttribute('data-rv-busy','1');
+    setTimeout(function(){ b.removeAttribute('data-rv-busy'); }, 900);
+  }, true);
+
+  /* ---------- ESC chiude la modale, blocco scroll sfondo ---------- */
+  document.addEventListener('keydown', function(ev){
+    if (ev.key === 'Escape') {
+      var modal = document.getElementById('modal');
+      if (modal && modal.style.display !== 'none' && modal.style.display !== '') { try { closeModal(); } catch(e){} }
+    }
+  });
+  var prevOpenModal = window.openModal, prevCloseModal = window.closeModal;
+  if (typeof prevOpenModal === 'function') window.openModal = function(){ prevOpenModal(); try { document.body.style.overflow = 'hidden'; } catch(e){} };
+  if (typeof prevCloseModal === 'function') window.closeModal = function(){ prevCloseModal(); try { document.body.style.overflow = ''; } catch(e){} };
+
+  /* ---------- Accessibilità di base ---------- */
+  try {
+    var nav = document.getElementById('nav');
+    if (nav) { nav.setAttribute('role','navigation'); nav.setAttribute('aria-label','Sezioni del gestionale'); }
+    var modal = document.getElementById('modal');
+    if (modal) { modal.setAttribute('role','dialog'); modal.setAttribute('aria-modal','true'); }
+  } catch(e){}
+
+  /* esposto per i test automatici */
+  window.__rvUxTest = { toast: window.rvToast, deleteIntervento: window.deleteIntervento };
+})();
+</script>
+
+<style id="rv-v811-ai-pro-style">
+/* ============================================================
+   v8.11 — Rural Vet AI: interfaccia "pro"
+   Design system a token, caricato per ultimo: vince per cascata
+   senza toccare la logica esistente.
+   ============================================================ */
+:root{
+  --ai-ink:#122a1c; --ai-ink-2:#5a6b5e; --ai-ink-3:#8a978c;
+  --ai-bg:#f4f6f1; --ai-surface:#ffffff; --ai-surface-2:#f8faf6;
+  --ai-border:rgba(18,42,28,.10); --ai-border-2:rgba(18,42,28,.16);
+  --ai-accent:#0f5d73; --ai-accent-2:#1f5a30; --ai-accent-grad:linear-gradient(135deg,#0b2845,#0f5d73 55%,#1f5a30);
+  --ai-danger:#a12626; --ai-ok:#1f5a30;
+  --ai-r-s:10px; --ai-r-m:14px; --ai-r-l:20px;
+  --ai-sh-1:0 1px 2px rgba(18,42,28,.06),0 4px 14px rgba(18,42,28,.05);
+  --ai-sh-2:0 8px 30px rgba(18,42,28,.12);
+}
+
+/* ---------- Header: compatto, con stato connessione ---------- */
+#rvAiPanel .rvAiHead{padding:10px 14px;border-bottom:1px solid var(--ai-border);background:var(--ai-surface);gap:10px}
+#rvAiPanel .rvAiMark{background:var(--ai-accent-grad);border-radius:12px;box-shadow:var(--ai-sh-1);font-size:12px;letter-spacing:.2px}
+#rvAiPanel .rvAiHeadTitle{font-size:16px;letter-spacing:.1px;color:var(--ai-ink)}
+#rvAiPanel .rvAiModeLine{color:var(--ai-ink-2)}
+#rvAiStatus{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:var(--ai-ink-2);margin-left:8px;white-space:nowrap}
+#rvAiStatus .dot{width:8px;height:8px;border-radius:99px;background:#b9c3ba;box-shadow:0 0 0 3px rgba(18,42,28,.05)}
+#rvAiStatus.online .dot{background:#2f9e57;box-shadow:0 0 0 3px rgba(47,158,87,.15)}
+#rvAiStatus.offline .dot{background:#c34a3a;box-shadow:0 0 0 3px rgba(195,74,58,.14)}
+#rvAiPanel .rvAiIconBtn{border:1px solid var(--ai-border);background:var(--ai-surface);border-radius:10px;min-height:34px;padding:0 11px;font-weight:800;color:var(--ai-ink);transition:background .15s,border-color .15s}
+#rvAiPanel .rvAiIconBtn:hover{background:var(--ai-surface-2);border-color:var(--ai-border-2)}
+
+/* ---------- Canvas messaggi ---------- */
+#rvAiPanel .rvAiMessages{background:
+  radial-gradient(circle at 1px 1px, rgba(18,42,28,.045) 1px, transparent 0) 0 0/22px 22px,
+  var(--ai-bg);
+  padding-top:20px;gap:6px}
+#rvAiPanel .rvAiMessages::-webkit-scrollbar{width:10px}
+#rvAiPanel .rvAiMessages::-webkit-scrollbar-thumb{background:rgba(18,42,28,.16);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+#rvAiPanel .rvAiMessages::-webkit-scrollbar-thumb:hover{background:rgba(18,42,28,.28);border:3px solid transparent;background-clip:content-box}
+
+/* ---------- Bolle: gerarchia, raggruppamento, numeri tabellari ---------- */
+#rvAiPanel .rvAiMsg{font-size:15.5px;line-height:1.45;border-radius:var(--ai-r-l);box-shadow:var(--ai-sh-1);margin-top:12px;font-variant-numeric:tabular-nums}
+#rvAiPanel .rvAiMsg.user{background:var(--ai-accent-grad);max-width:min(560px,84%);border-bottom-right-radius:8px}
+#rvAiPanel .rvAiMsg.bot{border:1px solid var(--ai-border);border-bottom-left-radius:8px;max-width:min(760px,94%)}
+/* etichetta "Rural Vet AI" solo sul primo messaggio di un gruppo consecutivo */
+#rvAiPanel .rvAiMsg.bot:before{font-size:10px;padding:3px 8px;top:-19px;box-shadow:none;background:var(--ai-accent-grad)}
+#rvAiPanel .rvAiMsg.bot + .rvAiMsg.bot:before{display:none}
+#rvAiPanel .rvAiMsg.bot + .rvAiMsg.bot{margin-top:6px}
+#rvAiPanel .rvAiMsg small{font-size:11px;opacity:.5;margin-top:8px}
+
+/* ---------- Testo ricco dentro le risposte ---------- */
+.rvRich{margin:0}
+.rvRich .rvRichTitle{font-weight:900;font-size:15.5px;color:var(--ai-ink);margin:0 0 6px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.rvRich .rvRichTitle .rvRichScope{font-weight:700;color:var(--ai-ink-2);font-size:13px;margin-left:8px}
+.rvRich p{margin:5px 0}
+.rvRich ul{margin:6px 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.rvRich ul li{padding:6px 10px;background:var(--ai-surface-2);border:1px solid var(--ai-border);border-radius:var(--ai-r-s);display:flex;gap:8px;align-items:baseline}
+.rvRich ul li:before{content:"";width:6px;height:6px;border-radius:99px;background:var(--ai-accent);flex:0 0 auto;transform:translateY(-2px);margin-right:8px}
+.rvRich ol{margin:6px 0;padding:0;list-style:none;counter-reset:rvRank;display:flex;flex-direction:column;gap:4px}
+.rvRich ol li{counter-increment:rvRank;padding:6px 10px 6px 8px;background:var(--ai-surface-2);border:1px solid var(--ai-border);border-radius:var(--ai-r-s);display:flex;gap:9px;align-items:baseline}
+.rvRich ol li:before{content:counter(rvRank);flex:0 0 auto;width:20px;height:20px;border-radius:99px;background:var(--ai-accent-grad);color:#fff;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;transform:translateY(3px);margin-right:9px}
+.rvRich .rvNum{font-weight:900;color:var(--ai-accent);white-space:nowrap}
+.rvRich .rvNeg{color:var(--ai-danger)}
+.rvRich kbd{background:var(--ai-ink);color:#fff;border-radius:7px;padding:1.5px 7px;font:inherit;font-size:12.5px;font-weight:900;letter-spacing:.4px}
+.rvRich kbd.rvKbdDanger{background:var(--ai-danger)}
+.rvRich .rvRichHint{color:var(--ai-ink-2);font-size:13px;margin-top:7px}
+
+/* ---------- Azioni sul messaggio (copia) ---------- */
+.rvMsgTools{position:absolute;right:8px;top:6px;opacity:0;transition:opacity .15s;display:flex;gap:4px}
+.rvAiMsg.bot:hover .rvMsgTools,.rvAiMsg.bot:focus-within .rvMsgTools{opacity:1}
+.rvMsgTools button{border:1px solid var(--ai-border);background:rgba(255,255,255,.92);color:var(--ai-ink-2);border-radius:8px;font-size:11px;font-weight:800;padding:3px 8px;cursor:pointer}
+.rvMsgTools button:hover{color:var(--ai-ink);border-color:var(--ai-border-2)}
+
+/* ---------- Quick replies: chips scorrevoli, azioni chiave evidenziate ---------- */
+#rvAiPanel .rvAiQuickButtons{gap:6px;margin-top:9px}
+@media (max-width:640px){#rvAiPanel .rvAiQuickButtons{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;padding-bottom:3px;margin-right:-6px}}
+#rvAiPanel .rvAiQuickButtons button{scroll-snap-align:start;background:var(--ai-surface);border:1px solid var(--ai-border-2);border-radius:999px;padding:7px 13px;font-size:13.5px;font-weight:800;color:var(--ai-ink);box-shadow:none;transition:background .12s,transform .06s;white-space:nowrap;min-height:36px}
+#rvAiPanel .rvAiQuickButtons button:hover{background:var(--ai-surface-2)}
+#rvAiPanel .rvAiQuickButtons button:active{transform:scale(.97)}
+#rvAiPanel .rvAiQuickButtons button[data-q="SALVA"]{background:var(--ai-ok);border-color:var(--ai-ok);color:#fff}
+#rvAiPanel .rvAiQuickButtons button[data-q="ELIMINA"]{background:var(--ai-danger);border-color:var(--ai-danger);color:#fff}
+#rvAiPanel .rvAiQuickButtons button[data-q="Annulla"]{background:transparent;border-style:dashed}
+
+/* ---------- Composer ---------- */
+#rvAiPanel .rvAiComposer{background:rgba(255,255,255,.9);backdrop-filter:blur(14px);border-top:1px solid var(--ai-border)}
+#rvAiPanel .rvAiComposeRow{border:1px solid var(--ai-border-2);border-radius:18px;box-shadow:var(--ai-sh-1);padding:6px;transition:border-color .15s,box-shadow .15s}
+#rvAiPanel .rvAiComposeRow:focus-within{border-color:var(--ai-accent);box-shadow:0 0 0 4px rgba(15,93,115,.12)}
+#rvAiPanel .rvAiAttachBtn{background:var(--ai-surface-2);border:1px solid var(--ai-border);border-radius:12px;min-width:44px}
+#rvAiPanel .rvAiSend{border-radius:13px;min-width:76px;background:var(--ai-accent-grad);letter-spacing:.2px}
+#rvAiPanel .rvAiFineprint{font-size:11.5px;color:var(--ai-ink-3)}
+
+/* ---------- Scroll-to-bottom ---------- */
+#rvAiScrollDown{position:absolute;right:16px;bottom:118px;z-index:5;width:40px;height:40px;border-radius:99px;border:1px solid var(--ai-border-2);background:var(--ai-surface);color:var(--ai-ink);font-size:18px;font-weight:900;box-shadow:var(--ai-sh-2);display:none;align-items:center;justify-content:center;cursor:pointer}
+#rvAiScrollDown.on{display:flex}
+
+/* ---------- Grafici e insight: coerenza col nuovo sistema ---------- */
+#rvAiPanel .rvAiMsg.hasChart{max-width:min(820px,96%)}
+@media (prefers-reduced-motion: reduce){#rvAiPanel *{transition:none !important;animation:none !important}}
+</style>
+<script id="rv-v811-ai-pro-script">
+/* v8.11 — Rural Vet AI interfaccia pro: formattazione ricca dei messaggi,
+   stato connessione reale, copia messaggio, scroll-to-bottom.
+   Additivo: osserva il DOM prodotto dal renderer esistente e lo arricchisce.
+   Idempotente per costruzione: il renderer ricrea i nodi, noi li ridecoriamo. */
+(function(){
+  'use strict';
+  var ESC = { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' };
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(m){ return ESC[m]; }); }
+
+  /* ---------- Inline decorations: importi, percentuali, KM, comandi ---------- */
+  function inline(safe){
+    return safe
+      .replace(/(\(?[-+]?\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?\s?€\)?)/g, function(m){
+        var neg = /^\(|^-/.test(m.trim());
+        return '<b class="rvNum' + (neg ? ' rvNeg' : '') + '">' + m + '</b>';
+      })
+      .replace(/([-+]?\d{1,3}(?:,\d{1,2})?\s?%)/g, '<b class="rvNum">$1</b>')
+      .replace(/(\d[\d.,]*\s?km)\b/gi, '<b class="rvNum">$1</b>')
+      .replace(/\b(SALVA|ADESSO)\b/g, '<kbd>$1</kbd>')
+      .replace(/\b(ELIMINA)\b/g, '<kbd class="rvKbdDanger">$1</kbd>');
+  }
+
+  /* ---------- Formatter: da testo piatto del backend a struttura ---------- */
+  function formatMessage(text){
+    var lines = String(text || '').split('\n').map(function(l){ return l.trim(); }).filter(function(l){ return l !== ''; });
+    if (!lines.length) return '';
+    var out = [], i = 0, buf = [];
+    function flushPara(){ if (buf.length) { out.push('<p>' + buf.map(function(l){ return inline(esc(l)); }).join('<br>') + '</p>'); buf = []; } }
+    // Titolo: prima riga se termina con ':' o contiene ' · ' (riepiloghi con scope)
+    if (/[:：]\s*$/.test(lines[0]) || /·/.test(lines[0])) {
+      var t = lines[0].replace(/[:：]\s*$/, '');
+      var parts = t.split('·');
+      var head = esc(parts.shift().trim());
+      var scope = parts.length ? '<span class="rvRichScope">' + inline(esc(parts.join('·').trim())) + '</span>' : '';
+      out.push('<div class="rvRichTitle">' + head + scope + '</div>');
+      i = 1;
+    }
+    var listType = null, items = [];
+    function flushList(){
+      if (!items.length) { listType = null; return; }
+      out.push('<' + listType + '>' + items.map(function(li){ return '<li><span>' + li + '</span></li>'; }).join('') + '</' + listType + '>');
+      items = []; listType = null;
+    }
+    for (; i < lines.length; i++) {
+      var l = lines[i];
+      var mRank = l.match(/^(\d+)\)\s+(.*)$/);
+      var mBullet = l.match(/^[-•]\s+(.*)$/);
+      if (mRank) { flushPara(); if (listType && listType !== 'ol') flushList(); listType = 'ol'; items.push(inline(esc(mRank[2]))); continue; }
+      if (mBullet) { flushPara(); if (listType && listType !== 'ul') flushList(); listType = 'ul'; items.push(inline(esc(mBullet[1]))); continue; }
+      flushList();
+      if (/^(scrivi\s+(salva|elimina)|vuoi\s|posso\s|dimmi\s)/i.test(l)) { flushPara(); out.push('<div class="rvRichHint">' + inline(esc(l)) + '</div>'); continue; }
+      buf.push(l);
+    }
+    flushList(); flushPara();
+    return '<div class="rvRich">' + out.join('') + '</div>';
+  }
+
+  /* ---------- Decorazione dei messaggi renderizzati ---------- */
+  function decorate(box){
+    if (!box) return;
+    Array.prototype.forEach.call(box.querySelectorAll('.rvAiMsg'), function(msg){
+      if (msg.getAttribute('data-rv-pro') === '1') return;
+      var pre = msg.querySelector(':scope > pre');
+      if (!pre) return; // typing indicator o messaggi senza testo
+      msg.setAttribute('data-rv-pro','1');
+      var raw = pre.textContent || '';
+      if (msg.classList.contains('bot')) {
+        var richHtml = formatMessage(raw);
+        if (richHtml) {
+          var rich = document.createElement('div');
+          rich.innerHTML = richHtml;
+          pre.replaceWith(rich.firstChild);
+        }
+        // copia messaggio
+        var tools = document.createElement('div');
+        tools.className = 'rvMsgTools';
+        var copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.textContent = 'Copia';
+        copyBtn.setAttribute('aria-label','Copia il messaggio');
+        copyBtn.onclick = function(){
+          function done(ok){ copyBtn.textContent = ok ? 'Copiato ✓' : 'Errore'; setTimeout(function(){ copyBtn.textContent = 'Copia'; }, 1600); }
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(raw).then(function(){ done(true); }, function(){ done(false); });
+          else { try { var ta = document.createElement('textarea'); ta.value = raw; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); done(true); } catch(e){ done(false); } }
+        };
+        tools.appendChild(copyBtn);
+        msg.appendChild(tools);
+        // Errore di rete/backend → offri "Riprova" con l'ultima richiesta dell'utente
+        if (/^(non riesco|errore backend|endpoint rural vet ai non disponibile)/i.test(raw.trim())) {
+          var prevUser = null, sib = msg.previousElementSibling;
+          while (sib) { if (sib.classList && sib.classList.contains('user')) { prevUser = sib; break; } sib = sib.previousElementSibling; }
+          var lastText = prevUser ? (prevUser.querySelector('pre') ? prevUser.querySelector('pre').textContent : prevUser.textContent) : '';
+          if (lastText && lastText.trim()) {
+            var row = document.createElement('div');
+            row.className = 'rvAiQuickButtons';
+            var retry = document.createElement('button');
+            retry.type = 'button';
+            retry.textContent = 'Riprova';
+            retry.setAttribute('data-q', lastText.trim());
+            retry.onclick = function(){ if (window.rvAiQuickValue) window.rvAiQuickValue(retry); };
+            row.appendChild(retry);
+            msg.appendChild(row);
+          }
+        }
+      }
+    });
+  }
+
+  /* ---------- Stato connessione nel header ---------- */
+  function endpointBase(){
+    try {
+      var ep = (window.RV_AI_ENDPOINT || 'https://rural-vet-ai.onrender.com/api/vet-ai-chat');
+      var raw = localStorage.getItem('manual-rural-vet-ai');
+      if (raw) { var s = JSON.parse(raw); if (s && s.endpoint) ep = s.endpoint; }
+      return String(ep).replace(/\/api\/.*$/, '');
+    } catch(e){ return ''; }
+  }
+  var lastPing = 0;
+  function refreshStatus(){
+    var head = document.querySelector('#rvAiPanel .rvAiHeadText');
+    if (!head) return;
+    var el = document.getElementById('rvAiStatus');
+    if (!el) {
+      el = document.createElement('span');
+      el.id = 'rvAiStatus';
+      el.innerHTML = '<span class="dot"></span><span class="txt">verifica…</span>';
+      var title = head.querySelector('.rvAiHeadTitle');
+      (title || head).appendChild(el);
+    }
+    if (Date.now() - lastPing < 30000) return;
+    lastPing = Date.now();
+    var base = endpointBase();
+    if (!base) { el.className = 'offline'; el.querySelector('.txt').textContent = 'endpoint mancante'; return; }
+    fetch(base + '/api/health').then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
+      if (j && j.ok) { el.className = 'online'; el.querySelector('.txt').textContent = 'online · v' + String(j.version || '').split('-')[0]; }
+      else { el.className = 'offline'; el.querySelector('.txt').textContent = 'offline'; }
+    }).catch(function(){ el.className = 'offline'; el.querySelector('.txt').textContent = 'offline'; });
+  }
+
+  /* ---------- Scroll-to-bottom ---------- */
+  function ensureScrollFab(panel, box){
+    if (document.getElementById('rvAiScrollDown')) return;
+    var b = document.createElement('button');
+    b.id = 'rvAiScrollDown';
+    b.type = 'button';
+    b.setAttribute('aria-label','Vai all\u2019ultimo messaggio');
+    b.textContent = '↓';
+    b.onclick = function(){ box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' }); };
+    panel.appendChild(b);
+    box.addEventListener('scroll', function(){
+      var away = box.scrollHeight - box.scrollTop - box.clientHeight > 260;
+      b.classList.toggle('on', away);
+    }, { passive: true });
+  }
+
+  /* ---------- Aggancio: il pannello nasce lazy, osservo il body ---------- */
+  function hook(){
+    var box = document.getElementById('rvAiMessages');
+    var panel = document.getElementById('rvAiPanel');
+    if (!box || !panel) return false;
+    decorate(box);
+    refreshStatus();
+    ensureScrollFab(panel, box);
+    if (!box.__rvProObs) {
+      var obs = new MutationObserver(function(){ decorate(box); refreshStatus(); });
+      obs.observe(box, { childList: true });
+      box.__rvProObs = obs;
+    }
+    return true;
+  }
+  if (typeof MutationObserver !== 'undefined' && document.body) {
+    var bodyObs = new MutationObserver(function(){ hook(); });
+    bodyObs.observe(document.body, { childList: true });
+  }
+  document.addEventListener('DOMContentLoaded', hook);
+  hook();
+
+  /* esposto per i test automatici */
+  window.__rvAiProTest = { formatMessage: formatMessage, inline: inline };
 })();
 </script>
 
