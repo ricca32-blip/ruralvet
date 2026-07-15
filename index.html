@@ -85,10 +85,37 @@ const $=id=>document.getElementById(id), eur=n=>'€'+(Number(n)||0).toLocaleStr
 fmtLong=d=>{let x=new Date(d+'T12:00');return x.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase())};
 const SYNC={binId:'69f1d3de856a68218987163d',apiKey:'$2a$10$DOPytrLfjqz1znLxBKNe5edSn/FH5RnMLBlFT/ciSDTqqShKLdnja'};
 let current=null, loginTarget=null, tab='oggi', dashMode='oggi', dashFrom='', dashTo='', activeListino=0;
-const baseProfiles=[{id:'ruralvet',name:'Rural Vet',role:'company',pass:'2026',desc:'Company profile',icon:'RV'},{id:'medardo',name:'Medardo Cammi',role:'worker',pass:'1996',desc:'Admin profile',icon:'MC'},{id:'edoardo',name:'Edoardo Ronda',role:'worker',pass:'0000',desc:'Team Member',icon:'ER'}];
+/* RV9 · autenticazione: niente più password in chiaro nel client.
+   I profili base hanno solo l'hash; il token firmato arriva dal backend. */
+async function rvSha256(s){try{const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(s)));return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('')}catch(e){return null}}
+function rvBackendBase(){try{const raw=localStorage.getItem('rv_vet_ai_settings_v1');const s=raw?JSON.parse(raw):null;if(s&&s.endpoint)return String(s.endpoint).replace(/\/api\/vet-ai-chat\/?$/,'')}catch(e){}return 'https://rural-vet-ai.onrender.com'}
+window.rvAuth=null;try{const _sa=JSON.parse(localStorage.getItem('rv_auth')||'null');if(_sa&&_sa.token&&Number(_sa.exp||0)>Date.now())window.rvAuth=_sa}catch(e){}
+function rvAuthHeaders(){return (window.rvAuth&&window.rvAuth.token)?{Authorization:'Bearer '+window.rvAuth.token}:{}}
+function rvAiAllowedFor(u){if(!u)return false;if(String(u.id)==='edoardo')return false;if(window.rvAuth&&window.rvAuth.user&&String(window.rvAuth.user.id)===String(u.id)&&window.rvAuth.aiAccess===false)return false;return true}
+async function rvBackendLogin(userId,password){
+  try{
+    const ctrl=typeof AbortController!=='undefined'?new AbortController():null;const tm=ctrl?setTimeout(()=>ctrl.abort(),6000):null;
+    const r=await fetch(rvBackendBase()+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:userId,password:password}),signal:ctrl?ctrl.signal:undefined});
+    if(tm)clearTimeout(tm);
+    if(!r.ok)return {ok:false,status:r.status};
+    const j=await r.json();
+    if(j&&j.token){window.rvAuth={token:j.token,user:j.user,aiAccess:!!j.aiAccess,exp:Date.now()+Number(j.expiresInMs||11*60*60*1000)};try{localStorage.setItem('rv_auth',JSON.stringify(window.rvAuth))}catch(e){}return {ok:true}}
+    return {ok:false,status:r.status};
+  }catch(e){return {ok:false,offline:true}}
+}
+const baseProfiles=[{id:'ruralvet',name:'Rural Vet',role:'company',passHash:'158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab',desc:'Company profile',icon:'RV'},{id:'medardo',name:'Medardo Cammi',role:'worker',passHash:'3d1e557b540ac045b3b327994a351f08a443f9216f9b2b8d3a0f42b58671ac83',desc:'Admin profile',icon:'MC'},{id:'edoardo',name:'Edoardo Ronda',role:'worker',passHash:'9af15b336e6a9619928537df30b2e6a2376569fcf9d7e773eccede65606529a0',desc:'Team Member',icon:'ER'}];
 let db={aziende:[{id:1,nome:'Az. Agr. Fratelli Conti',addr:'Via Cascina 12, Rottofreno',piva:'02345678901',tel:'3331111111',prezzi:{},km:18},{id:2,nome:'Cascina Belloni',addr:'Strada Campagna 55, Gossolengo',piva:'05678901234',tel:'3334444444',prezzi:{},km:9},{id:3,nome:'Allevamento Rossi',addr:'Via Po 7, San Giorgio Piacentino',piva:'06789012345',tel:'3335555555',prezzi:{},km:3}],prest:[{id:1,nome:'Visita di allevamento',cat:'Visite',price:80},{id:2,nome:'Visita clinica',cat:'Visite',price:35},{id:3,nome:'Visita urgenza',cat:'Visite',price:60},{id:4,nome:'Visita riproduttiva',cat:'Riproduzione',price:20},{id:5,nome:'Ecografia gravidanza',cat:'Riproduzione',price:25},{id:6,nome:'Vaccinazione',cat:'Profilassi',price:8},{id:7,nome:'Trattamento mastite',cat:'Terapia',price:30},{id:8,nome:'Cesareo',cat:'Chirurgia',price:350},{id:9,nome:'Indennità chiamata',cat:'Diritti',price:25},{id:10,nome:'Urgenza notturna/festiva',cat:'Diritti',price:50}],int:[],fatture:[],cfg:{iva:22,orsKey:'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjA5ZmFhYmNlMDE3NzRjYTViMzUwNGYzM2M1OTg4MzExIiwiaCI6Im11cm11cjY0In0=',nextFatt:1,kmRates:{medardo:.74,edoardo:.74},personal:{medardo:{email:'docmedo@libero.it',tel:'+39 335205861',home:'Via Napoli 3, San Giorgio Piacentino'},edoardo:{email:'',tel:'',home:''}},collaboratori:[]},kmCache:{},ids:{az:4,prest:11,int:1,fatt:1}};
 function allProfiles(){return baseProfiles.concat((db.cfg.collaboratori||[]).map(c=>({...c,role:'worker',desc:'Team Member'})))}function workers(){return allProfiles().filter(p=>p.role==='worker')}function userName(id){return (allProfiles().find(p=>p.id===id)||{name:id}).name}function initials(n){return n.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase()}function sessionLabel(s){return s==='p'?'Pomeriggio':s==='n'?'Notte':'Mattina'}function sessionIcon(s){return s==='p'?'🌇':s==='n'?'🌙':'🌅'}function sessionOrder(s){return s==='n'?2:s==='p'?1:0}function defaultSession(){let h=new Date().getHours();return h>=20?'n':(h>=14?'p':'m')}
-function renderProfiles(){$('profiles').innerHTML=allProfiles().map(p=>`<div class="prof" onclick="selectProfile('${p.id}')"><div class="avatar">${p.icon||initials(p.name)}</div><div><strong>${p.name}</strong><span>${p.desc}</span></div></div>`).join('')}function selectProfile(id){loginTarget=allProfiles().find(p=>p.id===id);$('profiles').classList.add('hidden');var aiLogin=$('rvAiLoginCard');if(aiLogin)aiLogin.classList.add('hidden');$('pwdBox').classList.remove('hidden');$('pwdWho').textContent=loginTarget.name;$('pwd').value='';$('err').textContent='';setTimeout(()=>$('pwd').focus(),100)}function cancelLogin(){loginTarget=null;$('profiles').classList.remove('hidden');var aiLogin=$('rvAiLoginCard');if(aiLogin)aiLogin.classList.remove('hidden');$('pwdBox').classList.add('hidden')}function doLogin(){if(!loginTarget)return;if($('pwd').value!==loginTarget.pass){$('err').textContent='Password errata';return}current=loginTarget;$('login').style.display='none';$('app').style.display='flex';loadCloud(()=>{setupUser();go(current.role==='company'?'dashboard':'oggi')})}function logout(){current=null;$('app').style.display='none';$('login').style.display='flex';cancelLogin();renderProfiles()}
+function renderProfiles(){$('profiles').innerHTML=allProfiles().map(p=>`<div class="prof" onclick="selectProfile('${p.id}')"><div class="avatar">${p.icon||initials(p.name)}</div><div><strong>${p.name}</strong><span>${p.desc}</span></div></div>`).join('')}function selectProfile(id){loginTarget=allProfiles().find(p=>p.id===id);$('profiles').classList.add('hidden');var aiLogin=$('rvAiLoginCard');if(aiLogin)aiLogin.classList.add('hidden');$('pwdBox').classList.remove('hidden');$('pwdWho').textContent=loginTarget.name;$('pwd').value='';$('err').textContent='';setTimeout(()=>$('pwd').focus(),100)}function cancelLogin(){loginTarget=null;$('profiles').classList.remove('hidden');var aiLogin=$('rvAiLoginCard');if(aiLogin)aiLogin.classList.remove('hidden');$('pwdBox').classList.add('hidden')}async function doLogin(){if(!loginTarget)return;const pwd=$('pwd').value;
+  let okLocal=false;
+  if(loginTarget.passHash){const h=await rvSha256(pwd);okLocal=(h&&h===loginTarget.passHash);}
+  else okLocal=(pwd===loginTarget.pass); /* collaboratori aggiunti da Rural Vet */
+  if(!okLocal){$('err').textContent='Password errata';return}
+  $('err').textContent='Accesso in corso…';
+  const auth=await rvBackendLogin(loginTarget.id,pwd);
+  if(!auth.ok){window.rvAuth=null;try{localStorage.removeItem('rv_auth')}catch(e){}}
+  if(!auth.ok&&!auth.offline&&auth.status===401){$('err').textContent='Password errata';return}
+  current=loginTarget;$('err').textContent='';$('login').style.display='none';$('app').style.display='flex';loadCloud(()=>{setupUser();go(current.role==='company'?'dashboard':'oggi')})}function logout(){current=null;window.rvAuth=null;try{localStorage.removeItem('rv_auth')}catch(e){}$('app').style.display='none';$('login').style.display='flex';cancelLogin();renderProfiles()}
 function setSaveState(t,c){let el=$('saveState');if(el){el.textContent=t||'';el.style.color=c||'var(--mut)';}}function saveCloud(){setSaveState('Salvataggio…','var(--amb)');fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':SYNC.apiKey},body:JSON.stringify(db)}).then(()=>{let tm=new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});setSaveState('✓ Salvato '+tm,'var(--g2)')}).catch(()=>setSaveState('⚠ Errore salvataggio','var(--red)'))}function loadCloud(cb){fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId+'/latest',{headers:{'X-Master-Key':SYNC.apiKey}}).then(r=>r.json()).then(j=>{if(j&&j.record&&j.record.aziende){db=j.record;migrate()}cb&&cb()}).catch(()=>cb&&cb())}function migrate(){db.aziende=db.aziende||[];let demo=[
 {id:901,nome:'Az. Agr. La Bellotta',addr:'Strada della Bellotta 1, 29010 Pontenure PC',piva:'DEMO901',tel:'',prezzi:{},km:12},
 {id:902,nome:'Cascina Bosco Gerolo',addr:'Via Gerolo 1, 29020 Rivergaro PC',piva:'DEMO902',tel:'',prezzi:{},km:20},
@@ -124,7 +151,7 @@ async function routeForAsync(day,uid){
   return{stops,total}
 }
 function tabs(){let t=current.role==='company'?[['oggi','Oggi'],['aziende','Aziende'],['km','Km'],['dashboard','Dashboard'],['fatture','Fatture'],['storico','Storico'],['impost','Impostazioni']]:[['oggi','Oggi'],['km','Km'],['storico','Storico'],['impost','Impostazioni']];return t}function setupUser(){$('topUser').textContent=current.name;$('topRole').textContent=current.role==='company'?'Company profile':'Worker profile';let html=tabs().map(x=>`<button data-tab="${x[0]}" onclick="go('${x[0]}')">${x[1]}</button>`).join('');$('topTabs').innerHTML=html;$('nav').innerHTML=html}function go(t){tab=t;document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));$('p-'+t).classList.add('on');document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));({oggi:rOggi,aziende:rAziende,km:rKm,dashboard:rDash,fatture:rFatture,storico:rStorico,impost:rImpost}[t]||rOggi)();document.querySelector('.main').scrollTop=0}
-function scopeInts(mode){if(current.role==='company')return db.int;return db.int.filter(i=>i.userId===current.id)}function price(pid,aid){let az=db.aziende.find(a=>a.id==aid),p=db.prest.find(p=>p.id==pid);return Number((az&&az.prezzi&&az.prezzi[pid]!=null)?az.prezzi[pid]:(p?p.price:0))}function calcTot(servs,aid){return servs.reduce((s,v)=>s+price(v.id,aid)*v.qty,0)}function kmRate(uid){return Number(db.cfg.kmRates&&db.cfg.kmRates[uid]||0)}function homeLabel(uid){let p=db.cfg.personal&&db.cfg.personal[uid];return (p&&p.home)?p.home:'Casa'}function routeFor(day,uid){
+function scopeInts(mode){if(current.role==='company')return db.int;return db.int.filter(i=>i.userId===current.id)}function price(pid,aid){let az=db.aziende.find(a=>a.id==aid),p=db.prest.find(p=>p.id==pid);return Number((az&&az.prezzi&&az.prezzi[pid]!=null)?az.prezzi[pid]:(p?p.price:0))}function calcTot(servs,aid){return servs.reduce((s,v)=>s+(v.price!=null?Number(v.price):price(v.id,aid))*Number(v.qty||1),0)}function kmRate(uid){return Number(db.cfg.kmRates&&db.cfg.kmRates[uid]||0)}function homeLabel(uid){let p=db.cfg.personal&&db.cfg.personal[uid];return (p&&p.home)?p.home:'Casa'}function routeFor(day,uid){
   let ints=db.int.filter(i=>i.data===day&&i.userId===uid).sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))});
   let stops=[],total=0,home=homeLabel(uid);
   ['m','p','n'].forEach(sess=>{
@@ -144,6 +171,58 @@ function scopeInts(mode){if(current.role==='company')return db.int;return db.int
   });
   return {stops,total}
 }function dayKmFor(day,uid){return routeFor(day,uid).total}
+/* RV9 · Tratte km materializzate in db.kmRoutes.
+   Prima l'AI riceveva ctx.km = [] (i km via chat non potevano funzionare):
+   ora ogni coppia giorno/utente presente negli interventi ha le sue tratte
+   persistite, con metodo dichiarato: 'ors' (percorso reale in cache) oppure
+   'company_distance' (stima dalla distanza azienda, andata e ritorno). */
+function rvKmRouteSig(day,uid){
+  let ints=(db.int||[]).filter(i=>i.data===day&&i.userId===uid);
+  let parts=ints.map(i=>{let a=(db.aziende||[]).find(x=>x.id==i.allId)||{};return [i.id,i.sess||'m',i.ora||'',i.allId,a.km||0,a.addr||''].join(':')});
+  let home=(db.cfg&&db.cfg.personal&&db.cfg.personal[uid]&&db.cfg.personal[uid].home)||'';
+  return parts.sort().join('|')+'#'+home;
+}
+function rvEnsureKmRoutes(){
+  if(typeof db==='undefined'||!db)return;
+  db.kmRoutes=db.kmRoutes||[];db.kmRoutesMeta=db.kmRoutesMeta||{};db.kmCache=db.kmCache||{};
+  let pairs={};(db.int||[]).forEach(i=>{if(i.data&&i.userId)pairs[i.data+'|'+i.userId]=true});
+  // pulizia: giorni/utenti che non hanno più interventi
+  Object.keys(db.kmRoutesMeta).forEach(k=>{if(!pairs[k]){delete db.kmRoutesMeta[k];db.kmRoutes=db.kmRoutes.filter(r=>(r.data+'|'+r.userId)!==k)}});
+  let changed=false;
+  Object.keys(pairs).forEach(key=>{
+    let [day,uid]=key.split('|');
+    let sig=rvKmRouteSig(day,uid);
+    if(db.kmRoutesMeta[key]===sig)return;
+    let ints=(db.int||[]).filter(i=>i.data===day&&i.userId===uid).sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))});
+    let personal=(db.cfg&&db.cfg.personal&&db.cfg.personal[uid])||{};
+    let homeAddr=personal.home||'';let rows=[];let n=0;
+    ['m','p','n'].forEach(sess=>{
+      let si=ints.filter(i=>(i.sess||'m')===sess);if(!si.length)return;
+      let prevAddr=homeAddr,prevKm=0,prevName='Casa';let seen={};
+      si.forEach((i,idx)=>{
+        let a=(db.aziende||[]).find(x=>x.id==i.allId)||{nome:'Azienda',addr:'',km:0};
+        let aKey=String(a.id!=null?a.id:(a.addr||a.nome));
+        if(seen[aKey]){ // due interventi nella stessa azienda nello stesso giro = una sola tratta
+          let ex=rows.find(r=>r.data===day&&r.sess===sess&&String(r.aziendaId)===String(a.id));
+          if(ex)ex.interventionIds.push(i.id);
+          return;
+        }
+        seen[aKey]=true;
+        let fallback=Object.keys(seen).length===1?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
+        let k=kmKey(prevAddr,a.addr||a.nome);let hit=db.kmCache[k]!=null;
+        let seg=hit?Number(db.kmCache[k]):Number(fallback||0);
+        if(seg>0)rows.push({id:'kr-'+day+'-'+uid+'-'+(n++),data:day,userId:uid,userName:userName(uid),from:prevName,to:a.nome,aziendaId:a.id,azienda:a.nome,km:seg,method:hit?'ors':'company_distance',isEstimate:!hit,sess:sess,interventionIds:[i.id]});
+        prevAddr=a.addr||a.nome;prevName=a.nome;prevKm=Number(a.km||0);
+      });
+      let kBack=kmKey(prevAddr,homeAddr);let hitBack=db.kmCache[kBack]!=null;
+      let back=hitBack?Number(db.kmCache[kBack]):Number(prevKm||0);
+      if(back>0)rows.push({id:'kr-'+day+'-'+uid+'-'+(n++),data:day,userId:uid,userName:userName(uid),from:prevName,to:'Casa',aziendaId:'',azienda:'',km:back,method:hitBack?'ors':'company_distance',isEstimate:!hitBack,sess:sess,interventionIds:[]});
+    });
+    db.kmRoutes=db.kmRoutes.filter(r=>(r.data+'|'+r.userId)!==key).concat(rows);
+    db.kmRoutesMeta[key]=sig;changed=true;
+  });
+  return changed;
+}
 function canManageIntervento(i){return current&&(current.role==='company'||i.userId===current.id)}
 function cardInt(i,showMoney=true){let az=db.aziende.find(a=>a.id==i.allId)||{nome:'Azienda'};let serv=i.servs.map(s=>{let p=db.prest.find(p=>p.id==s.id);return (p?p.nome:'?')+' x'+s.qty}).join(', ');let can=canManageIntervento(i);let money=showMoney&&current&&(current.role==='company'||current.id==='medardo');return `<div class="card"><div class="cardHead"><div class="grow"><div class="name">${az.nome}</div><div class="meta">${sessionIcon(i.sess)} ${sessionLabel(i.sess)} · ${i.ora||''} · ${userName(i.userId)} · ${serv}</div></div>${money?`<div class="amount">${eur(i.tot)}</div>`:''}</div><div class="tags">${current&&current.role==='company'?`<span class="tag ${i.fatt?'':'amb'}">${i.fatt?'Fatturato':'Da fatturare'}</span>`:''}${can?`<button class="tag blue" style="border:0;cursor:pointer" onclick="editIntervento(${i.id})">Modifica</button><button class="tag red" style="border:0;cursor:pointer" onclick="deleteIntervento(${i.id})">Elimina</button>`:''}</div></div>`}
 function rOggi(){let ints=scopeInts().filter(i=>i.data===iso());let tot=ints.reduce((s,i)=>s+i.tot,0),km=current.role==='company'?workers().reduce((s,w)=>s+dayKmFor(iso(),w.id),0):dayKmFor(iso(),current.id);let split=current.role==='company'?`<div class="grid2">${workers().map(w=>{let wi=db.int.filter(i=>i.data===iso()&&i.userId===w.id),wt=wi.reduce((s,i)=>s+i.tot,0),wk=dayKmFor(iso(),w.id);return `<div class="card"><div class="name">${w.name}</div><div class="tags"><span class="tag">${wi.length} interventi</span><span class="tag blue">${wk.toFixed(1)} km</span><span class="tag amb">${eur(wt)}</span></div></div>`}).join('')}</div>`:'';let stats=`<div class="stat"><div class="v">${ints.length}</div><div class="l">Interventi</div></div><div class="stat"><div class="v">${km.toFixed(1)}</div><div class="l">Km</div></div>`;if(current.role==='company'||current.id==='medardo')stats+=`<div class="stat"><div class="v">${eur(tot)}</div><div class="l">Incasso</div></div>`;let addBtn=current.role!=='company'?`<button class="btn" onclick="openIntervento()">+ Intervento</button>`:'';$('p-oggi').innerHTML=`<div class="titleRow"><div><div class="h">Oggi</div><div class="todayDate">${fmtLong(iso())}</div></div>${addBtn}</div><div class="stats">${stats}</div>${split}${ints.length?ints.sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))}).map(i=>cardInt(i,current.role==='company'||current.id==='medardo')).join(''):'<div class="empty">Nessun intervento oggi</div>'}`}
@@ -186,9 +265,9 @@ function setPrice(pid,v){v=Number(v)||0;if(activeListino){let az=db.aziende.find
 function openAzienda(id){let a=id?db.aziende.find(x=>x.id===id):{nome:'',addr:'',piva:'',tel:'',km:0};$('sheet').innerHTML=`<div class="titleRow"><div class="h">${id?'Modifica':'Nuova'} azienda</div><button class="btn secondary" onclick="closeModal()">Chiudi</button></div><div class="formGrid"><div><div class="label">Nome</div><input id="azNome" class="input" value="${a.nome}"></div><div><div class="label">Indirizzo</div><input id="azAddr" class="input" value="${a.addr||''}"></div><div class="grid2"><div><div class="label">P.IVA</div><input id="azPiva" class="input" value="${a.piva||''}"></div><div><div class="label">Telefono</div><input id="azTel" class="input" value="${a.tel||''}"></div></div><div><div class="label">Km fallback (solo se indirizzi/API non disponibili)</div><input id="azKm" class="input" type="number" value="${a.km||0}"></div><button class="btn" onclick="saveAzienda(${id||0})">Salva</button></div>`;openModal()}function saveAzienda(id){let d={nome:$('azNome').value,addr:$('azAddr').value,piva:$('azPiva').value,tel:$('azTel').value,km:Number($('azKm').value)||0,prezzi:{}};if(!d.nome)return alert('Nome obbligatorio');if(id)Object.assign(db.aziende.find(a=>a.id===id),d);else db.aziende.push({id:newId('az'),...d});saveCloud();closeModal();rAziende()}
 function servicePickerHTML(prefix, allId, selected){
   selected=selected||{};
-  let cats=[...new Set(db.prest.map(p=>p.cat))];
+  let cats=[...new Set(db.prest.filter(p=>!p.archived).map(p=>p.cat))];
   let showPrices=current&&(current.role==='company'||current.id==='medardo');
-  return cats.map(cat=>`<div class="catBlock"><div class="catTitle">${cat}</div>${db.prest.filter(p=>p.cat===cat).map(p=>{let q=selected[p.id]||0;return `<div class="svc svcCat"><div><b>${p.nome}</b><div class="small">${showPrices?'€'+price(p.id,allId)+' · ':''}${p.cat}</div></div><div class="step"><button onclick="chg${prefix}(${p.id},-1)">−</button><span id="${prefix}q${p.id}" class="q">${q}</span><button onclick="chg${prefix}(${p.id},1)">+</button></div></div>`}).join('')}</div>`).join('')
+  return cats.map(cat=>`<div class="catBlock"><div class="catTitle">${cat}</div>${db.prest.filter(p=>!p.archived&&p.cat===cat).map(p=>{let q=selected[p.id]||0;return `<div class="svc svcCat"><div><b>${p.nome}</b><div class="small">${showPrices?'€'+price(p.id,allId)+' · ':''}${p.cat}</div></div><div class="step"><button onclick="chg${prefix}(${p.id},-1)">−</button><span id="${prefix}q${p.id}" class="q">${q}</span><button onclick="chg${prefix}(${p.id},1)">+</button></div></div>`}).join('')}</div>`).join('')
 }
 function openIntervento(){if(current.role==='company')return;window.sel={};let firstAz=db.aziende[0]?db.aziende[0].id:0;let azi=db.aziende.map(a=>`<option value="${a.id}">${a.nome}</option>`).join('');$('sheet').innerHTML=`<div class="titleRow"><div class="h">Nuovo intervento</div><button class="btn secondary" onclick="closeModal()">Chiudi</button></div><div class="formGrid"><div><div class="label">Azienda</div><select id="iAz" class="input" onchange="document.getElementById('servPicker').innerHTML=servicePickerHTML('',Number(this.value),window.sel)">${azi}</select></div><div class="grid2"><div><div class="label">Data</div><input id="iData" class="input" type="date" value="${iso()}"></div><div><div class="label">Ora</div><input id="iOra" class="input" type="time" value="${new Date().toTimeString().slice(0,5)}"></div></div><div><div class="label">Sessione</div><select id="iSess" class="input"><option value="m" ${defaultSession()==='m'?'selected':''}>🌅 Mattina</option><option value="p" ${defaultSession()==='p'?'selected':''}>🌇 Pomeriggio</option><option value="n" ${defaultSession()==='n'?'selected':''}>🌙 Notte / Urgenza</option></select></div><div><div class="label">Prestazioni</div><div id="servPicker">${servicePickerHTML('',firstAz,window.sel)}</div></div><div><div class="label">Note</div><textarea id="iNote" class="input"></textarea></div><button class="btn" onclick="saveIntervento()">Salva intervento</button></div>`;openModal()}
 function chg(id,d){window.sel[id]=Math.max(0,(window.sel[id]||0)+d);let el=$('q'+id);if(el)el.textContent=window.sel[id]}
@@ -352,7 +431,7 @@ function rvSelectedTotal(selected,allId){return Object.entries(selected||{}).red
 function rvUpdatePicker(prefix){let key=prefix||'i', selected=prefix==='e'?window.esel:window.sel, azEl=$(prefix==='e'?'eAz':'iAz'), allId=Number(azEl&&azEl.value||0);let tot=rvSelectedTotal(selected,allId), cnt=rvSelectedCount(selected), kinds=rvSelectedKinds(selected);let t=$(key+'PickerTotal');if(t)t.textContent=rvMoney(tot);let l=$(key+'SelectedLine');if(l)l.textContent=cnt?`${cnt} voci selezionate su ${kinds} righe · totale ${rvMoney(tot)}`:'Nessuna voce selezionata';}
 window.rvFilterServices=function(key){let root=$(key+'Picker');if(!root)return;let q=String(($(key+'Search')&&$(key+'Search').value)||'').toLowerCase().trim(),cat=root.dataset.cat||'';let visible=0;root.querySelectorAll('.svc[data-name]').forEach(el=>{let ok=(!q||el.dataset.name.includes(q))&&(!cat||el.dataset.cat===cat);el.style.display=ok?'flex':'none';if(ok)visible++});root.querySelectorAll('.catTitle[data-cat]').forEach(el=>{let c=el.dataset.cat;let any=[...root.querySelectorAll(`.svc[data-cat="${CSS.escape(c)}"]`)].some(x=>x.style.display!=='none');el.style.display=any?'block':'none'});let empty=$(key+'PickerEmpty');if(empty)empty.style.display=visible?'none':'block';};
 window.rvSetCat=function(key,cat){let root=$(key+'Picker');if(!root)return;root.dataset.cat=(root.dataset.cat===cat?'':cat);root.querySelectorAll('.rvCatChip').forEach(b=>b.classList.toggle('on',root.dataset.cat&&b.dataset.cat===root.dataset.cat));rvFilterServices(key)};
-window.servicePickerHTML=function servicePickerHTML(prefix, allId, selected){selected=selected||{};let key=prefix||'i';let cats=[...new Set(db.prest.map(p=>p.cat||'Listino'))];let byCat=cats.map(cat=>`<div class="catTitle" data-cat="${rvEscAttr(cat)}">${rvEsc(cat)}</div>${db.prest.filter(p=>(p.cat||'Listino')===cat).map(p=>{let q=selected[p.id]||0;return `<div class="svc svcCat" data-name="${rvEscAttr((p.nome+' '+p.cat+' '+(p.tipo||'')).toLowerCase())}" data-cat="${rvEscAttr(cat)}"><div><b>${rvEsc(p.nome)}</b><div class="small"><span class="rvPrice">${rvMoney(price(p.id,allId))}</span> · ${rvEsc(p.tipo||'Prestazione')} · ${rvEsc(p.cat)}</div></div><div class="step"><button onclick="chg${prefix}(${p.id},-1)">-</button><span id="${prefix}q${p.id}" class="q">${q}</span><button onclick="chg${prefix}(${p.id},1)">+</button></div></div>`}).join('')}`).join('');setTimeout(()=>rvUpdatePicker(prefix),0);return `<div id="${key}Picker" class="rvPicker" data-cat=""><div class="rvPickerTop"><div class="rvPickerTools"><input id="${key}Search" class="input" placeholder="Cerca prestazione, farmaco o fiala..." oninput="rvFilterServices('${key}')"><div id="${key}PickerTotal" class="rvTotal">${rvMoney(rvSelectedTotal(selected,allId))}</div></div><div class="rvCatChips"><button class="rvCatChip" data-cat="" onclick="rvSetCat('${key}','')">Tutto</button>${cats.map(c=>`<button class="rvCatChip" data-cat="${rvEscAttr(c)}" onclick='rvSetCat("${key}",${JSON.stringify(c)})'>${rvEsc(c)}</button>`).join('')}</div><div id="${key}SelectedLine" class="rvSelectedLine"></div></div><div class="rvPickerGrid">${byCat}</div><div id="${key}PickerEmpty" class="rvEmptySmall" style="display:none">Nessuna voce corrisponde alla ricerca.</div></div>`};
+window.servicePickerHTML=function servicePickerHTML(prefix, allId, selected){selected=selected||{};let key=prefix||'i';let rvActivePrest=db.prest.filter(p=>!p.archived);let cats=[...new Set(rvActivePrest.map(p=>p.cat||'Listino'))];let byCat=cats.map(cat=>`<div class="catTitle" data-cat="${rvEscAttr(cat)}">${rvEsc(cat)}</div>${rvActivePrest.filter(p=>(p.cat||'Listino')===cat).map(p=>{let q=selected[p.id]||0;return `<div class="svc svcCat" data-name="${rvEscAttr((p.nome+' '+p.cat+' '+(p.tipo||'')).toLowerCase())}" data-cat="${rvEscAttr(cat)}"><div><b>${rvEsc(p.nome)}</b><div class="small"><span class="rvPrice">${rvMoney(price(p.id,allId))}</span> · ${rvEsc(p.tipo||'Prestazione')} · ${rvEsc(p.cat)}</div></div><div class="step"><button onclick="chg${prefix}(${p.id},-1)">-</button><span id="${prefix}q${p.id}" class="q">${q}</span><button onclick="chg${prefix}(${p.id},1)">+</button></div></div>`}).join('')}`).join('');setTimeout(()=>rvUpdatePicker(prefix),0);return `<div id="${key}Picker" class="rvPicker" data-cat=""><div class="rvPickerTop"><div class="rvPickerTools"><input id="${key}Search" class="input" placeholder="Cerca prestazione, farmaco o fiala..." oninput="rvFilterServices('${key}')"><div id="${key}PickerTotal" class="rvTotal">${rvMoney(rvSelectedTotal(selected,allId))}</div></div><div class="rvCatChips"><button class="rvCatChip" data-cat="" onclick="rvSetCat('${key}','')">Tutto</button>${cats.map(c=>`<button class="rvCatChip" data-cat="${rvEscAttr(c)}" onclick='rvSetCat("${key}",${JSON.stringify(c)})'>${rvEsc(c)}</button>`).join('')}</div><div id="${key}SelectedLine" class="rvSelectedLine"></div></div><div class="rvPickerGrid">${byCat}</div><div id="${key}PickerEmpty" class="rvEmptySmall" style="display:none">Nessuna voce corrisponde alla ricerca.</div></div>`};
 window.openIntervento=function openIntervento(dateOverride){if(current.role==='company')return;window.sel={};let chosenDate=dateOverride||((tab==='storico'&&window.stDay)?window.stDay:iso());let firstAz=db.aziende[0]?db.aziende.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'it'))[0].id:0;let azi=db.aziende.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'it')).map(a=>`<option value="${a.id}" ${a.id===firstAz?'selected':''}>${rvEsc(a.nome)}</option>`).join('');$('sheet').innerHTML=`<div class="titleRow"><div><div class="h">Nuovo intervento</div><div class="small">Scegli azienda, data e aggiungi prestazioni/farmaci con +.</div></div><button class="btn secondary" onclick="closeModal()">Chiudi</button></div><div class="formGrid"><div class="rvModalLead">Il listino include prestazioni, medicinali e fiale importati dai PDF. Usa la ricerca per inserire tutto velocemente.</div><div><div class="label">Azienda</div><select id="iAz" class="input" onchange="document.getElementById('servPicker').innerHTML=servicePickerHTML('',Number(this.value),window.sel)">${azi}</select></div><div class="grid2"><div><div class="label">Data</div><input id="iData" class="input" type="date" value="${chosenDate}"></div><div><div class="label">Ora</div><input id="iOra" class="input" type="time" value="${new Date().toTimeString().slice(0,5)}"></div></div><div><div class="label">Sessione</div><select id="iSess" class="input"><option value="m" ${defaultSession()==='m'?'selected':''}>Mattina</option><option value="p" ${defaultSession()==='p'?'selected':''}>Pomeriggio</option><option value="n" ${defaultSession()==='n'?'selected':''}>Notte / Urgenza</option></select></div><div><div class="label">Prestazioni, farmaci e fiale</div><div id="servPicker">${servicePickerHTML('',firstAz,window.sel)}</div></div><div><div class="label">Note</div><textarea id="iNote" class="input"></textarea></div><div class="rvQuickBar"><button class="btn" onclick="saveIntervento()">Salva intervento</button><button class="btn secondary" onclick="closeModal()">Annulla</button></div></div>`;openModal();setTimeout(()=>{let s=$('iSearch');if(s)s.focus()},80)};
 window.chg=function chg(id,d){window.sel=window.sel||{};window.sel[id]=Math.max(0,(window.sel[id]||0)+d);let el=$('q'+id);if(el)el.textContent=window.sel[id];rvUpdatePicker('')};
 window.editIntervento=function editIntervento(id){let i=db.int.find(x=>x.id===id);if(!i||!canManageIntervento(i))return alert('Non puoi modificare questo intervento');window.esel={};(i.servs||[]).forEach(s=>window.esel[s.id]=s.qty);let azi=db.aziende.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'it')).map(a=>`<option value="${a.id}" ${a.id==i.allId?'selected':''}>${rvEsc(a.nome)}</option>`).join('');$('sheet').innerHTML=`<div class="titleRow"><div><div class="h">Modifica intervento</div><div class="small">Aggiorna velocemente prestazioni, farmaci e fiale.</div></div><button class="btn secondary" onclick="closeModal()">Chiudi</button></div><div class="formGrid"><div><div class="label">Azienda</div><select id="eAz" class="input" onchange="document.getElementById('eServPicker').innerHTML=servicePickerHTML('e',Number(this.value),window.esel)">${azi}</select></div><div class="grid2"><div><div class="label">Data</div><input id="eData" class="input" type="date" value="${i.data}"></div><div><div class="label">Ora</div><input id="eOra" class="input" type="time" value="${i.ora||''}"></div></div><div><div class="label">Sessione</div><select id="eSess" class="input"><option value="m" ${(i.sess||'m')==='m'?'selected':''}>Mattina</option><option value="p" ${(i.sess||'m')==='p'?'selected':''}>Pomeriggio</option><option value="n" ${(i.sess||'m')==='n'?'selected':''}>Notte / Urgenza</option></select></div><div><div class="label">Prestazioni, farmaci e fiale</div><div id="eServPicker">${servicePickerHTML('e',i.allId,window.esel)}</div></div><div><div class="label">Note</div><textarea id="eNote" class="input">${rvEsc(i.note||'')}</textarea></div><div class="rvQuickBar"><button class="btn" onclick="saveEditIntervento(${id})">Salva modifiche</button><button class="btn red" onclick="deleteIntervento(${id});closeModal()">Elimina</button></div></div>`;openModal()};
@@ -1055,6 +1134,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
 #rvAiLoginCard{margin:12px 0 0;padding:13px 14px;border-radius:22px;background:linear-gradient(135deg,#12301a,#1f5a30,#39a05b);color:#fff;border:1px solid rgba(255,255,255,.25);display:flex;align-items:center;gap:12px;justify-content:space-between;box-shadow:0 14px 38px rgba(18,48,26,.18)}#rvAiLoginCard b{display:block;font-size:20px;font-weight:900;line-height:1}#rvAiLoginCard span{display:block;font-size:13px;color:rgba(255,255,255,.76);line-height:1.2;margin-top:3px}#rvAiLoginCard button{border:0;border-radius:15px;background:#fff;color:#12301a;font-weight:900;padding:10px 13px;min-width:70px;box-shadow:0 10px 24px rgba(0,0,0,.15)}#rvAiLoginCard button:active{transform:scale(.98)}
 #rvAiHomeCard:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 12% 0,rgba(255,255,255,.22),transparent 26%),radial-gradient(circle at 90% 30%,rgba(101,201,123,.28),transparent 34%),linear-gradient(110deg,transparent 20%,rgba(255,255,255,.08) 50%,transparent 78%);pointer-events:none;z-index:-1}.rvAiHomeGrid{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center}.rvAiTitle{font-size:34px;font-weight:900;line-height:1;letter-spacing:-.03em;margin:0}.rvAiKeep{font-family:inherit!important;background:transparent!important;border:0!important;padding:0!important;color:inherit!important}.rvAiHomeActions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.rvAiOpenBtn,.rvAiGhostBtn{border:0;border-radius:18px;padding:13px 16px;min-height:48px;font-weight:900;box-shadow:0 14px 34px rgba(0,0,0,.18);white-space:nowrap}.rvAiOpenBtn{background:#fff;color:#12301a}.rvAiGhostBtn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.25)}
 .rvAiOverlay{position:fixed;inset:0;z-index:90;background:rgba(247,247,242,.94);backdrop-filter:blur(10px) saturate(1.05);display:flex;align-items:center;justify-content:center;padding:18px}.rvAiOverlay.hidden{display:none!important}.rvAiPanel{width:min(1040px,100%);height:min(900px,calc(100vh - 34px));background:#fffdf8;border:1px solid rgba(18,48,26,.10);box-shadow:0 28px 95px rgba(0,0,0,.22);border-radius:28px;display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;color:#12301a}.rvAiHead{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid rgba(18,48,26,.08);background:rgba(255,255,255,.92);backdrop-filter:blur(14px)}.rvAiMark{min-width:92px;height:42px;padding:0 10px;border-radius:15px;display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(135deg,#12301a,#1f5a30,#39a05b);color:#fff;font-weight:900;font-size:12px;line-height:1.05;box-shadow:0 10px 24px rgba(18,48,26,.20)}.rvAiHeadText{min-width:0}.rvAiHeadTitle{font-size:22px;font-weight:900;line-height:1}.rvAiModeLine,.rvAiHeadSub{display:none!important}.rvAiHeadActions{margin-left:auto;display:flex;gap:8px;align-items:center}.rvAiIconBtn{border:1px solid rgba(42,78,48,.14);background:rgba(255,255,255,.88);color:#12301a;border-radius:14px;min-height:40px;padding:8px 12px;font-weight:900;box-shadow:0 8px 18px rgba(18,48,26,.05)}.rvAiIconBtn:active,.rvAiAttachBtn:active,.rvAiOpenBtn:active,.rvAiGhostBtn:active{transform:scale(.98)}.rvAiIconBtn.rvAiClose{font-size:26px;line-height:1;width:42px;padding:0}.rvAiBody{min-height:0;display:block;background:linear-gradient(180deg,#fffdf8,#fbfcf8)}.rvAiMessages{height:100%;overflow:auto;padding:24px max(18px,calc((100% - 820px)/2));display:flex;flex-direction:column;gap:15px;scroll-behavior:smooth}.rvAiMsg{max-width:800px;border-radius:22px;padding:12px 14px;line-height:1.32;white-space:normal;word-break:break-word;position:relative;font-size:18px}.rvAiMsg pre{margin:0;font:inherit;white-space:pre-wrap;word-break:break-word}.rvAiMsg.user{align-self:flex-end;max-width:min(660px,86%);background:#12301a;color:#fff;border-bottom-right-radius:7px;box-shadow:0 10px 25px rgba(18,48,26,.14)}.rvAiMsg.bot{align-self:flex-start;background:#fff;border:1px solid rgba(18,48,26,.09);color:#12301a;border-bottom-left-radius:7px;box-shadow:0 10px 28px rgba(18,48,26,.05)}.rvAiMsg.system{align-self:center;max-width:92%;background:#fff7dd;border:1px solid #eadb9a;color:#5d4305;text-align:center;font-size:14px;box-shadow:none}.rvAiMsg small{display:block;margin-top:7px;opacity:.55;font-size:12px}.rvAiMsg.bot:before{content:"Rural Vet AI";position:absolute;left:12px;top:-22px;width:auto;height:auto;border-radius:999px;background:linear-gradient(135deg,#12301a,#1f5a30,#39a05b);color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:4px 8px;box-shadow:0 8px 18px rgba(18,48,26,.12)}.rvAiComposer{border-top:1px solid rgba(18,48,26,.08);padding:12px max(14px,calc((100% - 820px)/2));background:rgba(255,255,255,.96);backdrop-filter:blur(12px)}.rvAiPreview{display:none;align-items:center;gap:10px;background:#fff;border:1px solid rgba(42,78,48,.14);border-radius:16px;padding:8px;margin:0 0 8px}.rvAiPreview.on{display:flex}.rvAiPreview img{width:54px;height:54px;border-radius:12px;object-fit:cover}.rvAiPreviewText{font-size:14px;color:#73806d;flex:1;min-width:0}.rvAiComposeRow{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:8px;align-items:end;background:#fff;border:1px solid rgba(42,78,48,.15);border-radius:23px;padding:7px;box-shadow:0 12px 34px rgba(18,48,26,.08)}.rvAiAttachBtn{border:0;background:#edf7ea;color:#12301a;border-radius:17px;min-height:44px;padding:0 13px;font-weight:900}.rvAiMicBtn.on{background:#12301a;color:#fff}.rvAiInput{width:100%;min-height:44px;max-height:170px;border:0;background:transparent;border-radius:18px;padding:11px 8px;color:#12301a;resize:none;line-height:1.25;box-shadow:none}.rvAiInput:focus,.rvAiMiniInput:focus,.rvAiTextarea:focus{outline:none}.rvAiSend{border:0;border-radius:17px;min-height:44px;min-width:64px;padding:0 14px;background:linear-gradient(135deg,#12301a,#1f5a30,#39a05b);color:#fff;font-size:17px;font-weight:900;box-shadow:0 10px 24px rgba(18,48,26,.20)}.rvAiSend:disabled{opacity:.58;filter:grayscale(.35)}.rvAiFineprint{font-size:12px;color:#73806d;margin-top:8px;text-align:center}.rvAiTyping{display:inline-flex;gap:4px;align-items:center}.rvAiTyping i{display:block;width:6px;height:6px;border-radius:99px;background:#73806d;animation:rvAiDot 1s infinite}.rvAiTyping i:nth-child(2){animation-delay:.15s}.rvAiTyping i:nth-child(3){animation-delay:.3s}.rvAiTypingText{font-size:14px;color:#73806d;margin-left:8px}@keyframes rvAiDot{0%,100%{opacity:.3;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+.rvAiQuickBar{display:flex;gap:8px;overflow-x:auto;padding:10px 14px;border-bottom:1px solid rgba(18,48,26,.08);background:rgba(255,255,255,.92);scrollbar-width:none}.rvAiQuickBar::-webkit-scrollbar{display:none}.rvAiChip{flex:0 0 auto;border:1px solid rgba(42,78,48,.16);background:#f2f8f0;color:#12301a;border-radius:999px;min-height:36px;padding:6px 13px;font-weight:800;font-size:14px;white-space:nowrap}.rvAiChip:active{transform:scale(.97)}
 .rvAiQuickButtons{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.rvAiQuickButtons button{border:1px solid rgba(31,90,48,.18);background:#edf7ea;color:#12301a;border-radius:999px;padding:7px 11px;font-weight:900;font-size:14px;box-shadow:0 6px 14px rgba(18,48,26,.06)}.rvAiQuickButtons button:hover{background:#dff1dd}.rvAiQuickButtons button:active{transform:scale(.98)}.rvAiSettingsPanel{position:absolute;inset:0;background:rgba(247,247,242,.82);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:18px;z-index:3}.rvAiSettingsPanel.hidden{display:none!important}.rvAiSettingsCard{width:min(820px,100%);max-height:min(780px,calc(100vh - 70px));overflow:auto;background:#fffdf8;border:1px solid rgba(18,48,26,.13);box-shadow:0 24px 80px rgba(0,0,0,.22);border-radius:24px;padding:18px;color:#12301a}.rvAiSettingsTop{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}.rvAiSettingsTop>div{flex:1}.rvAiSettingsTitle{font-size:24px;font-weight:900;line-height:1.05}.rvAiSettingsSub{color:#73806d;font-size:15px;line-height:1.34;margin-top:4px}.rvAiSettingsStatus{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 12px}.rvAiSettingsStatus span{border-radius:999px;background:#edf7ea;color:#1f5a30;border:1px solid #d5ead0;padding:5px 9px;font-size:12px;font-weight:900}.rvAiSettingsGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.rvAiSideBlock{background:rgba(255,255,255,.82);border:1px solid rgba(42,78,48,.12);border-radius:20px;padding:12px;margin-bottom:10px;box-shadow:0 10px 28px rgba(18,48,26,.045)}.rvAiKnowledgeBlock{margin-top:2px}.rvAiMiniInput,.rvAiTextarea{width:100%;border:1px solid rgba(42,78,48,.16);border-radius:15px;background:#fffdf8;color:#12301a;padding:10px 12px;font:inherit}.rvAiTextarea{min-height:118px;resize:vertical;font-size:16px}.rvAiKnowledgeTextarea{min-height:220px}.rvAiCheck{display:flex;gap:9px;align-items:flex-start;font-size:15px;font-weight:800;color:#12301a}.rvAiCheck input{margin-top:4px}.rvAiSave{border:0;background:linear-gradient(135deg,#12301a,#1f5a30,#39a05b);color:#fff;border-radius:15px;padding:11px 14px;font-weight:900}.rvAiMiniBtn{border:1px solid rgba(42,78,48,.15);background:#fff;color:#12301a;border-radius:15px;padding:10px 12px;font-weight:900;text-align:center}.rvAiDanger{background:#fff0ed!important;color:#9f1d1d!important}.rvAiSideText{font-size:14px;color:#73806d;line-height:1.32}.rvAiNotesActions,.rvAiSettingsActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:flex-end}.rvAiSide,.rvAiQuickChips{display:none!important}
 .rvAiInsightGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}.rvAiInsightCard{border:1px solid rgba(31,90,48,.12);background:#fbfdf8;border-radius:16px;padding:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}.rvAiInsightCard.high{background:#fff3ee;border-color:#f1c3b3}.rvAiInsightCard.medium{background:#fff9e8;border-color:#eadb9a}.rvAiInsightCard b{display:block;font-size:13px;color:#12301a}.rvAiInsightCard strong{display:block;font-size:20px;line-height:1.05;margin:4px 0;color:#12301a}.rvAiInsightCard span{display:block;font-size:12px;color:#73806d;line-height:1.25}.rvAiChart{margin-top:12px;border:1px solid rgba(31,90,48,.12);background:#fbfdf8;border-radius:18px;padding:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}.rvAiChartTitle{font-size:15px;font-weight:900;margin-bottom:9px;color:#12301a}.rvAiChartSvg{width:100%;height:190px;display:block;overflow:visible}.rvAiChartAxis{stroke:rgba(18,48,26,.18);stroke-width:1}.rvAiChartBar{fill:#2f8b45}.rvAiChartLine{fill:none;stroke:#2f8b45;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.rvAiChartDot{fill:#12301a}.rvAiChartLabel{font-size:10px;fill:#73806d}.rvAiChartRows{display:grid;gap:6px;margin-top:8px}.rvAiChartRow{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,2fr) auto;gap:8px;align-items:center;font-size:13px}.rvAiChartRow b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rvAiChartTrack{height:9px;border-radius:99px;background:#edf7ea;overflow:hidden}.rvAiChartFill{height:100%;background:#2f8b45;border-radius:99px}.rvAiChartVal{font-weight:900;font-variant-numeric:tabular-nums}.rvAiMsg.bot.hasChart{max-width:860px}
 @media(max-width:760px){.rvAiHomeGrid{grid-template-columns:1fr}.rvAiHomeActions{justify-content:stretch}.rvAiOpenBtn,.rvAiGhostBtn{flex:1}.rvAiTitle{font-size:32px}.rvAiOverlay{padding:0;align-items:stretch}.rvAiPanel{height:100%;border-radius:0;max-width:none}.rvAiHead{padding:calc(env(safe-area-inset-top,0px) + 9px) 10px 10px;gap:9px}.rvAiMark{min-width:86px;height:40px;border-radius:14px;font-size:11px}.rvAiHeadTitle{font-size:20px}.rvAiHeadActions{gap:5px}.rvAiIconBtn{min-height:38px;padding:8px 9px}.rvAiIconBtn.rvAiClose{width:39px}.rvAiMessages{padding:16px 12px 16px 54px}.rvAiMsg{max-width:95%;font-size:17px}.rvAiMsg.user{max-width:88%}.rvAiComposer{padding:9px 10px calc(10px + env(safe-area-inset-bottom,0px))}.rvAiComposeRow{grid-template-columns:auto auto minmax(0,1fr) auto;border-radius:21px}.rvAiAttachBtn{padding:0 10px}.rvAiSend{min-width:54px;padding:0 10px}.rvAiFineprint{font-size:11px}.rvAiSettingsPanel{padding:10px}.rvAiSettingsCard{max-height:calc(100vh - 22px);padding:14px;border-radius:22px}.rvAiSettingsGrid{grid-template-columns:1fr}.rvAiSettingsTitle{font-size:22px}}
@@ -1116,6 +1196,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   let pendingChoiceAction = null;
   let pendingMgmtAction = null;
   let pendingInterventionDraft = null;
+  let pendingServiceDraft = null;
   let lastAiUi = null;
   let lastAiChart = null;
   let lastAiInsights = [];
@@ -1216,11 +1297,12 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     const html = '<div id="rvAiChat" class="rvAiOverlay hidden" aria-hidden="true">' +
       '<div id="rvAiPanel" class="rvAiPanel" role="dialog" aria-modal="true" aria-label="Rural Vet AI">' +
       '<div class="rvAiHead"><div class="rvAiMark">Rural Vet AI</div><div class="rvAiHeadText"><div class="rvAiHeadTitle">Rural Vet AI</div><div id="rvAiModeLine" class="rvAiModeLine">' + modeBadges() + '</div></div><div class="rvAiHeadActions"><button class="rvAiIconBtn" type="button" onclick="rvAiOpenSettings()">Appunti</button><button class="rvAiIconBtn" type="button" onclick="rvAiNewChat()">Nuova</button><button class="rvAiIconBtn rvAiClose" type="button" onclick="rvAiClose()" aria-label="Chiudi">×</button></div></div>' +
+      '<div class="rvAiQuickBar"><button type="button" class="rvAiChip" onclick="rvAiQuick(\'Nuovo intervento\',1)">Nuovo intervento</button><button type="button" class="rvAiChip" onclick="rvAiQuick(\'Gestisci prestazioni\',1)">Gestisci prestazioni</button><button type="button" class="rvAiChip" onclick="rvAiQuick(\'Quanti km ho percorso oggi?\',1)">KM di oggi</button><button type="button" class="rvAiChip" onclick="rvAiQuick(\'Km di questo mese\',1)">KM del mese</button><button type="button" class="rvAiChip" onclick="rvAiQuick(\'Ricavi di questo mese\',1)">Ricavi del mese</button><button type="button" class="rvAiChip" onclick="rvAiQuick(\'Cosa c\u2019\u00e8 da fatturare?\',1)">Da fatturare</button><button type="button" class="rvAiChip" onclick="rvAiQuick(\'Cerca azienda \',0)">Cerca azienda</button><button type="button" class="rvAiChip" onclick="rvAiQuick(\'Chiusura giornata\',1)">Chiusura giornata</button></div>' +
       '<div class="rvAiBody"><div id="rvAiMessages" class="rvAiMessages"></div><div id="rvAiSettingsPanel" class="rvAiSettingsPanel hidden" aria-hidden="true"></div></div>' +
       '<div class="rvAiComposer"><div id="rvAiPreview" class="rvAiPreview"><img id="rvAiPreviewImg" alt="Foto referto"><div class="rvAiPreviewText"><b id="rvAiPreviewName">Foto allegata</b><div>Se non leggo bene la foto, scrivimi valori, unità e range.</div></div><button class="rvAiIconBtn" type="button" onclick="rvAiRemoveImage()">Rimuovi</button></div>' +
       '<input id="rvAiFile" type="file" accept="image/*" capture="environment" style="display:none" onchange="rvAiHandleFile(this.files&&this.files[0]);this.value=\'\'">' +
       '<input id="rvAiNotesFile" type="file" accept=".txt,.md,.csv,.json,.html,.htm,.rtf" multiple style="display:none" onchange="rvAiHandleNotes(this.files);this.value=\'\'">' +
-      '<div class="rvAiComposeRow"><button class="rvAiAttachBtn" type="button" onclick="rvAiPickImage()">Foto</button><button id="rvAiMicBtn" class="rvAiAttachBtn rvAiMicBtn" type="button" onclick="rvAiToggleMic()">🎙️</button><textarea id="rvAiInput" class="rvAiInput" rows="1" placeholder="Chiedi a Rural Vet AI: cockpit, grafico ricavi, inserisci intervento..."></textarea><button id="rvAiSend" class="rvAiSend" type="button" onclick="rvAiSend()">Invia</button></div><div class="rvAiFineprint">Rural Vet AI usa i dati del gestionale: non salva, modifica o elimina nulla senza SALVA/ELIMINA esplicito.</div></div>' +
+      '<div class="rvAiComposeRow"><button class="rvAiAttachBtn" type="button" onclick="rvAiPickImage()">Foto</button><button id="rvAiMicBtn" class="rvAiAttachBtn rvAiMicBtn" type="button" onclick="rvAiToggleMic()">🎙️</button><textarea id="rvAiInput" class="rvAiInput" rows="1" placeholder="Chiedi a Rural Vet AI: cockpit, grafico ricavi, inserisci intervento..."></textarea><button id="rvAiSend" class="rvAiSend" type="button" onclick="rvAiSend()">Invia</button></div><div class="rvAiFineprint">Rural Vet AI v9 · usa i dati del gestionale: non salva, modifica o elimina nulla senza SALVA/ELIMINA esplicito.</div></div>' +
       '</div></div>';
     document.body.insertAdjacentHTML('beforeend', html);
     const input = $('rvAiInput');
@@ -1928,10 +2010,11 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   }
   function normalizeUpdateInterventionAction(action, sourceText){
     const updates = normalizeInterventionUpdates(action, sourceText);
+    const lineOps = Array.isArray(action.lineOps) && action.lineOps.length ? action.lineOps : null;
     const items = interventionCandidatesForAction(action, sourceText);
-    if (!items.length) return {type:'update_intervention', items:[], updates:updates, none:true};
-    if (items.length > 1) return {type:'choose_management', kind:'update_intervention_target', options:items, base:{type:'update_intervention', updates:updates, query:action.query || sourceText || ''}};
-    return {type:'update_intervention', items:[items[0]], updates:updates};
+    if (!items.length) return {type:'update_intervention', items:[], updates:updates, lineOps:lineOps, none:true};
+    if (items.length > 1) return {type:'choose_management', kind:'update_intervention_target', options:items, base:{type:'update_intervention', updates:updates, lineOps:lineOps, after:action.after || null, recordVersion:action.recordVersion, query:action.query || sourceText || ''}};
+    return {type:'update_intervention', items:[items[0]], updates:updates, lineOps:lineOps, after:action.after || null, recordVersion:action.recordVersion};
   }
   function normalizeClientMgmtAction(action, sourceText){
     const company = findCompany({companyId:action.companyId || action.aziendaId || action.clientId, companyName:action.companyName || action.azienda || action.cliente || action.name});
@@ -1944,8 +2027,12 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     const service = findServiceRecord(action.serviceId || action.id) || findService({name:action.serviceName || action.name || action.nome});
     if (!service) return {type:action.type, service:null, fields:action.fields || {}, none:true};
     const company = action.companyId || action.companyName ? findCompany({companyId:action.companyId, companyName:action.companyName}) : null;
-    if (action.type === 'delete_service') return {type:'delete_service', service:service};
-    return {type:'update_service', service:service, company:company, fields:Object.assign({}, action.fields || {})};
+    const carry = {recordVersion:action.recordVersion, before:action.before || null, after:action.after || null};
+    if (action.type === 'delete_service') return Object.assign({type:'delete_service', service:service}, carry);
+    if (action.type === 'archive_service') return Object.assign({type:'archive_service', service:service, usage:action.usage || null}, carry);
+    if (action.type === 'restore_service') return Object.assign({type:'restore_service', service:service}, carry);
+    if (action.type === 'remove_company_price') return Object.assign({type:'remove_company_price', service:service, company:company}, carry);
+    return Object.assign({type:'update_service', service:service, company:company, fields:Object.assign({}, action.fields || {})}, carry);
   }
   function invoiceCandidatesForAction(action, sourceText){
     if (action.invoiceId || action.id || action.numero || action.number) {
@@ -1986,12 +2073,19 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     }
     if (t === 'update_intervention') return normalizeUpdateInterventionAction(action, sourceText);
     if (t === 'update_client' || t === 'delete_client') return normalizeClientMgmtAction(action, sourceText);
-    if (t === 'create_service' || t === 'update_service' || t === 'delete_service') return normalizeServiceMgmtAction(action, sourceText);
+    if (t === 'create_service' || t === 'update_service' || t === 'delete_service' || t === 'archive_service' || t === 'restore_service' || t === 'remove_company_price') return normalizeServiceMgmtAction(action, sourceText);
     if (t === 'create_invoice' || t === 'update_invoice' || t === 'delete_invoice') return normalizeInvoiceMgmtAction(action, sourceText);
     if (t === 'update_settings') return normalizeSettingsMgmtAction(action);
     return null;
   }
-  function isMgmtAction(a){ return !!a && ['update_intervention','update_client','delete_client','create_service','update_service','delete_service','create_invoice','update_invoice','delete_invoice','update_settings','batch_management_actions'].includes(a.type); }
+  function rvAuditLog(kind, label, before, after){
+    try {
+      db.auditLog = db.auditLog || [];
+      db.auditLog.push({ at:new Date().toISOString(), by:(typeof current !== 'undefined' && current) ? current.id : '', via:'rural-vet-ai', kind:kind, label:String(label || '').slice(0,200), before:before || null, after:after || null });
+      if (db.auditLog.length > 500) db.auditLog = db.auditLog.slice(-500);
+    } catch(e){}
+  }
+  function isMgmtAction(a){ return !!a && ['update_intervention','update_client','delete_client','create_service','update_service','delete_service','archive_service','restore_service','remove_company_price','create_invoice','update_invoice','delete_invoice','update_settings','batch_management_actions'].includes(a.type); }
   function mgmtNeedsDeleteConfirm(a){
     if (!a) return false;
     if (a.type === 'batch_management_actions') return (a.items || []).some(mgmtNeedsDeleteConfirm);
@@ -2013,6 +2107,9 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     if (a.type === 'create_invoice') return a.company ? 'Ho preparato l’emissione fattura per ' + a.company.nome + '.\nScrivi SALVA per emetterla.' : 'Non trovo il cliente per la fattura.';
     if (a.type === 'update_invoice') return a.items && a.items.length ? 'Ho preparato la modifica fattura n. ' + (a.items[0].num || a.items[0].numero || a.items[0].id) + ':\n' + fieldsSummary(a.fields) + '\nScrivi SALVA per aggiornare.' : 'Non trovo la fattura.';
     if (a.type === 'delete_invoice') return a.items && a.items.length ? 'Ho preparato l’annullamento fattura n. ' + (a.items[0].num || a.items[0].numero || a.items[0].id) + '.\nScrivi ELIMINA per annullarla.' : 'Non trovo la fattura.';
+    if (a.type === 'archive_service') return a.service ? 'Ho preparato l’archiviazione della voce listino ' + a.service.nome + ' (storico intatto, reversibile).\nScrivi SALVA per confermare.' : 'Non trovo la voce listino da archiviare.';
+    if (a.type === 'restore_service') return a.service ? 'Ho preparato il ripristino della voce listino ' + a.service.nome + '.\nScrivi SALVA per confermare.' : 'Non trovo la voce listino da ripristinare.';
+    if (a.type === 'remove_company_price') return (a.service && a.company) ? 'Ho preparato la rimozione del prezzo personalizzato di ' + a.company.nome + ' per ' + a.service.nome + ': tornerà il listino base.\nScrivi SALVA per confermare.' : 'Non trovo voce o azienda per il prezzo personalizzato.';
     if (a.type === 'update_settings') return 'Ho preparato la modifica impostazioni:\n' + fieldsSummary(a.fields) + '\nScrivi SALVA per applicarla.';
     return 'Ho preparato una modifica gestionale. Scrivi SALVA per applicarla.';
   }
@@ -2032,6 +2129,37 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     if (!a) return 'Azione vuota.';
     if (a.type === 'update_intervention') {
       const i = a.items && a.items[0]; if (!i) return 'Intervento non trovato.';
+      if (a.recordVersion !== undefined && a.recordVersion !== null && Number(i._v || 0) !== Number(a.recordVersion)) return 'L’intervento è cambiato nel frattempo (versione diversa): ricontrolla e ripeti la modifica.';
+      if (Array.isArray(a.lineOps) && a.lineOps.length) {
+        let rows = (i.servs || []).map(s => ({ id:String(s.id), qty:Number(s.qty || 1), price:(s.price != null ? Number(s.price) : null) }));
+        const effPrice = r => (r.price != null ? r.price : price(Number(r.id), i.allId));
+        const findIdx = sid => rows.findIndex(r => r.id === String(sid));
+        for (const op of a.lineOps) {
+          const idx = op.serviceId != null ? findIdx(op.serviceId) : -1;
+          if (op.op === 'add') {
+            if (idx >= 0) rows[idx].qty += Math.max(1, Number(op.qty || 1));
+            else rows.push({ id:String(op.serviceId), qty:Math.max(1, Number(op.qty || 1)), price:null });
+          } else if (op.op === 'setQty' && idx >= 0) rows[idx].qty = Math.max(1, Number(op.qty || 1));
+          else if (op.op === 'removeUnit' && idx >= 0) { const q = Math.max(1, Number(op.qty || 1)); if (rows[idx].qty > q) rows[idx].qty -= q; else rows.splice(idx, 1); }
+          else if (op.op === 'removeLine' && idx >= 0) rows.splice(idx, 1);
+          else if ((op.op === 'replace' || op.op === 'replacePartial') && idx >= 0) {
+            const moveQty = op.op === 'replace' ? rows[idx].qty : Math.min(rows[idx].qty, Math.max(1, Number(op.qty || 1)));
+            rows[idx].qty -= moveQty;
+            const toIdx = findIdx(op.toServiceId);
+            if (toIdx >= 0) rows[toIdx].qty += moveQty; else rows.push({ id:String(op.toServiceId), qty:moveQty, price:null });
+            if (rows[idx].qty <= 0) rows.splice(idx, 1);
+          }
+          else if (op.op === 'setPrice' && idx >= 0) rows[idx].price = Number(op.price || 0);
+        }
+        const merged = [];
+        for (const r of rows) { const same = merged.find(m => m.id === r.id && effPrice(m) === effPrice(r)); if (same) same.qty += r.qty; else merged.push(r); }
+        i.servs = merged.map(r => { const s = { id:Number(r.id), qty:Number(r.qty) }; if (r.price != null) s.price = Number(r.price); return s; });
+        i.tot = calcTot(i.servs, i.allId);
+        i._v = Number(i._v || 0) + 1;
+        rvAuditLog('update_intervention_lines', interventionLine(i), (a.before || null), (a.after || null));
+        appendAiMemory('Prestazioni intervento aggiornate: ' + interventionLine(i), 'intervento_modificato');
+        return 'Intervento aggiornato: prestazioni e totale ricalcolati (' + eur(i.tot) + ').';
+      }
       const u = a.updates || {};
       if (u.data) i.data = u.data;
       if (u.ora) i.ora = u.ora;
@@ -2052,6 +2180,8 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       if (u.note) i.note = (i.note ? i.note + ' | ' : '') + u.note;
       if (u.fatt !== undefined) i.fatt = !!u.fatt;
       i.tot = calcTot(i.servs || [], i.allId);
+      i._v = Number(i._v || 0) + 1;
+      rvAuditLog('update_intervention', interventionLine(i), null, null);
       appendAiMemory('Intervento modificato: ' + interventionLine(i), 'intervento_modificato');
       return 'Intervento aggiornato.';
     }
@@ -2077,10 +2207,11 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     if (a.type === 'create_service') {
       const f = a.fields || {}; if (!String(f.name || f.nome || '').trim()) return 'Nome voce listino mancante.';
       const rec = {id:newId('prest'), nome:String(f.name || f.nome).trim(), cat:String(f.cat || f.categoria || 'Listino Rural Vet AI'), tipo:String(f.tipo || 'Prestazione'), price:Number(f.price || f.prezzo || 0) || 0, catalog:'manual-rural-vet-ai'};
-      db.prest.push(rec); appendAiMemory('Voce listino creata: ' + rec.nome, 'listino'); return 'Voce listino creata.';
+      db.prest.push(rec); rvAuditLog('create_service', rec.nome, null, {price:rec.price, cat:rec.cat}); appendAiMemory('Voce listino creata: ' + rec.nome, 'listino'); return 'Voce listino creata: ' + rec.nome + ' (' + eur(rec.price) + ', ' + rec.cat + ').';
     }
     if (a.type === 'update_service') {
       if (!a.service) return 'Voce listino non trovata.';
+      if (a.recordVersion !== undefined && a.recordVersion !== null && Number(a.service._v || 0) !== Number(a.recordVersion)) return 'La voce di listino è cambiata nel frattempo (versione diversa): ricontrolla i dati e ripeti la modifica.';
       const f = a.fields || {};
       if (a.company && f.price !== undefined) { a.company.prezzi = a.company.prezzi || {}; a.company.prezzi[a.service.id] = Number(f.price) || 0; }
       else {
@@ -2089,13 +2220,47 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
         if (f.tipo) a.service.tipo = f.tipo;
         if (f.price !== undefined || f.prezzo !== undefined) a.service.price = Number(f.price !== undefined ? f.price : f.prezzo) || 0;
       }
+      a.service._v = Number(a.service._v || 0) + 1;
+      rvAuditLog('update_service', a.service.nome, a.before, a.after);
       appendAiMemory('Listino modificato: ' + a.service.nome, 'listino_modificato'); return 'Listino aggiornato.';
+    }
+    if (a.type === 'archive_service') {
+      if (!a.service) return 'Voce listino non trovata.';
+      if (a.service.archived) return 'È già archiviata: nessuna modifica necessaria.';
+      a.service.archived = true; a.service._v = Number(a.service._v || 0) + 1;
+      rvAuditLog('archive_service', a.service.nome, null, null);
+      appendAiMemory('Voce listino archiviata: ' + a.service.nome, 'listino_archiviato');
+      return 'Voce archiviata: non comparirà più tra le scelte dei nuovi interventi, lo storico resta leggibile. Puoi ripristinarla quando vuoi.';
+    }
+    if (a.type === 'restore_service') {
+      if (!a.service) return 'Voce listino non trovata.';
+      if (!a.service.archived) return 'È già attiva a listino: nessuna modifica necessaria.';
+      a.service.archived = false; a.service._v = Number(a.service._v || 0) + 1;
+      rvAuditLog('restore_service', a.service.nome, null, null);
+      appendAiMemory('Voce listino ripristinata: ' + a.service.nome, 'listino_ripristinato');
+      return 'Voce ripristinata: è di nuovo attiva a listino.';
+    }
+    if (a.type === 'remove_company_price') {
+      if (!a.service || !a.company) return 'Voce o azienda non trovata.';
+      if (!a.company.prezzi || a.company.prezzi[a.service.id] == null) return a.company.nome + ' usa già il listino base per questa voce: nessuna modifica necessaria.';
+      delete a.company.prezzi[a.service.id];
+      rvAuditLog('remove_company_price', a.service.nome + ' · ' + a.company.nome, a.before, a.after);
+      appendAiMemory('Prezzo personalizzato rimosso: ' + a.service.nome + ' per ' + a.company.nome, 'listino_modificato');
+      return 'Prezzo personalizzato rimosso: per ' + a.company.nome + ' vale di nuovo il listino base.';
     }
     if (a.type === 'delete_service') {
       if (!a.service) return 'Voce listino non trovata.';
+      // Ricontrollo dei vincoli al momento dell'applicazione (i dati possono essere cambiati)
       const linked = (db.int || []).some(i => (i.servs || []).some(s => String(s.id) === String(a.service.id)));
-      if (linked) return 'Non elimino la voce listino perché è usata nello storico interventi. Puoi portare il prezzo a 0 o rinominarla.';
-      db.prest = (db.prest || []).filter(x => String(x.id) !== String(a.service.id)); appendAiMemory('Voce listino eliminata: ' + a.service.nome, 'listino_eliminato'); return 'Voce listino eliminata.';
+      if (linked) { a.service.archived = true; a.service._v = Number(a.service._v || 0) + 1; return 'Nel frattempo la voce è stata usata in un intervento: l’ho archiviata invece di eliminarla, così lo storico resta leggibile.'; }
+      db.tombstones = db.tombstones || [];
+      db.tombstones.push({ kind:'prest', record: JSON.parse(JSON.stringify(a.service)), deletedAt: new Date().toISOString(), by: (typeof current !== 'undefined' && current) ? current.id : '' });
+      db.tombstones = db.tombstones.filter(t => (Date.now() - new Date(t.deletedAt).getTime()) < 30*24*60*60*1000);
+      (db.aziende || []).forEach(az => { if (az.prezzi) delete az.prezzi[a.service.id]; });
+      db.prest = (db.prest || []).filter(x => String(x.id) !== String(a.service.id));
+      rvAuditLog('delete_service', a.service.nome, null, null);
+      appendAiMemory('Voce listino eliminata: ' + a.service.nome, 'listino_eliminato');
+      return 'Voce eliminata dal listino. Resta recuperabile dal cestino per 30 giorni.';
     }
     if (a.type === 'create_invoice') {
       if (!a.company) return 'Cliente fattura non trovato.';
@@ -2175,7 +2340,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     return out.slice(0,10);
   }
   function isCancelCommand(text){ return /^\s*(annulla|cancella|lascia stare|stop|no|non salvare|reset)\s*\.?\s*$/i.test(String(text || '')); }
-  function clearPendingActions(){ pendingAiAction = null; pendingClientAction = null; pendingMgmtAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; pendingInterventionDraft = null; lastAiUi = null; addMsg('bot','Ok, ho annullato l’operazione in corso.'); }
+  function clearPendingActions(){ pendingAiAction = null; pendingClientAction = null; pendingMgmtAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; pendingInterventionDraft = null; pendingServiceDraft = null; lastAiUi = null; addMsg('bot','Ok, ho annullato l’operazione in corso.'); }
   function normalizeAiAction(action, sourceText){
     if (!action) return null;
     const t = String(action.type || '');
@@ -2276,14 +2441,15 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   function appContext(inputText){
     let ctx = {date:new Date().toISOString(), app:'Rural Vet', domain:'veterinaria buiatrica'};
     if (pendingInterventionDraft) ctx.pendingInterventionDraft = pendingInterventionDraft;
+    if (pendingServiceDraft) ctx.pendingServiceDraft = pendingServiceDraft;
     try { if (typeof current !== 'undefined' && current) ctx.user = {id:current.id, name:current.name, role:current.role}; } catch(e){}
     try {
       if (typeof db !== 'undefined' && db) {
         const n = norm(inputText || '');
         const aziendeAll = (db.aziende || []).map(a => ({
-          id:a.id, nome:a.nome, ragioneSociale:a.ragioneSociale || '', addr:a.addr || a.indirizzo || '', comune:a.comune || '', cap:a.cap || '', provincia:a.provincia || '', piva:a.piva || '', cf:a.cf || '', sdi:a.sdi || '', tel:a.tel || '', email:a.email || '', km:a.km || 0
+          id:a.id, nome:a.nome, ragioneSociale:a.ragioneSociale || '', addr:a.addr || a.indirizzo || '', comune:a.comune || '', cap:a.cap || '', provincia:a.provincia || '', piva:a.piva || '', cf:a.cf || '', sdi:a.sdi || '', tel:a.tel || '', email:a.email || '', km:a.km || 0, prezzi:a.prezzi || {}
         })).filter(a => a.nome);
-        const prestazioniAll = (db.prest || []).map(p => ({id:p.id, nome:p.nome, cat:p.cat || '', tipo:p.tipo || 'Prestazione', price:Number(p.price || p.prezzo || 0)})).filter(p => p.nome);
+        const prestazioniAll = (db.prest || []).map(p => ({id:p.id, nome:p.nome, cat:p.cat || '', tipo:p.tipo || 'Prestazione', price:Number(p.price || p.prezzo || 0), archived:!!p.archived, _v:Number(p._v || 0)})).filter(p => p.nome);
         const usersAll = (typeof workers === 'function' ? workers() : []).map(u => ({id:u.id, name:u.name, role:u.role || ''})).filter(u => u.name);
         const aziendeHit = aziendeAll.filter(a => n && [a.nome,a.ragioneSociale,a.comune,a.piva,a.cf,a.sdi].some(v => {
           const nv = norm(v || '');
@@ -2312,7 +2478,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
         ctx.interventi = interventiAll;
         ctx.interventiRecenti = interventiRecenti;
         ctx.fatture = fattureAll;
-        ctx.km = [];
+        try { rvEnsureKmRoutes(); ctx.km = (db.kmRoutes || []).slice(-4000); } catch(e) { ctx.km = []; }
         ctx.config = {iva:db.cfg && db.cfg.iva, kmRates:db.cfg && db.cfg.kmRates ? db.cfg.kmRates : {}};
         ctx.aziendeSample = aziendeAll.slice(0,35).map(a => a.nome).filter(Boolean);
         ctx.aiMemoryRecent = ((db.cfg && db.cfg.aiMemory) || []).filter(m => !m.userId || !current || m.userId === current.id || m.kind === 'istruzione').slice(0,80);
@@ -2352,8 +2518,10 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timer = ctrl ? setTimeout(() => ctrl.abort(), 22000) : null;
     let res;
-    try { res = await fetch(s.endpoint, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal:ctrl ? ctrl.signal : undefined}); }
+    try { res = await fetch(s.endpoint, {method:'POST', headers:Object.assign({'Content-Type':'application/json'}, (typeof rvAuthHeaders==='function'?rvAuthHeaders():{})), body:JSON.stringify(payload), signal:ctrl ? ctrl.signal : undefined}); }
     finally { if (timer) clearTimeout(timer); }
+    if (res.status === 401) throw new Error('Sessione scaduta o assente: esci e rientra nel gestionale per usare Rural Vet AI.');
+    if (res.status === 403) throw new Error('Rural Vet AI non è abilitata per questo account.');
     if (!res.ok) throw new Error('Endpoint Rural Vet AI non disponibile: HTTP ' + res.status);
     const data = await res.json();
     lastQuickReplies = [];
@@ -2365,11 +2533,16 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       if (pendingInterventionDraft && data.action.awaiting) pendingInterventionDraft.awaiting = data.action.awaiting;
       pendingAiAction = null; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null;
     }
+    if (data.action && data.action.type === 'continue_service_draft') {
+      pendingServiceDraft = data.action.draft || null;
+      pendingAiAction = null; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; pendingInterventionDraft = null;
+    }
+    if (data.action && data.action.type === 'clear_service_draft') { pendingServiceDraft = null; data.action = null; }
     saveBackendLearnings(data.learn || data.learning || data.memories);
     const arrActions = Array.isArray(data.actions) ? data.actions.filter(Boolean) : [];
     const onlyCreateInts = arrActions.length && arrActions.every(x => !x.type || String(x.type) === 'create_intervention');
     let actionCandidate = data.action || (arrActions.length ? (onlyCreateInts ? {type:'create_interventions', items:arrActions} : {type:'batch_management_actions', items:arrActions}) : null);
-    if (actionCandidate && actionCandidate.type === 'continue_intervention_draft') actionCandidate = null;
+    if (actionCandidate && (actionCandidate.type === 'continue_intervention_draft' || actionCandidate.type === 'continue_service_draft' || actionCandidate.type === 'clear_service_draft')) actionCandidate = null;
     if (actionCandidate) {
       const normAction = normalizeAiAction(actionCandidate, text);
       if (data.ui && data.ui.mode === 'intervention_wizard' && data.ui.awaiting === 'confirm') {
@@ -2379,7 +2552,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       else if (normAction && normAction.type === 'delete_intervention') { pendingDeleteAction = normAction; pendingAiAction = null; pendingClientAction = null; pendingChoiceAction = null; pendingMgmtAction = null; }
       else if (normAction && normAction.type === 'choose_delete') { pendingChoiceAction = {kind:'delete_intervention', options:normAction.options || []}; pendingDeleteAction = null; pendingAiAction = null; pendingClientAction = null; pendingMgmtAction = null; }
       else if (normAction && normAction.type === 'choose_management') { pendingChoiceAction = normAction; pendingDeleteAction = null; pendingAiAction = null; pendingClientAction = null; pendingMgmtAction = null; }
-      else if (isMgmtAction(normAction)) { pendingMgmtAction = normAction; pendingAiAction = null; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; }
+      else if (isMgmtAction(normAction)) { pendingMgmtAction = normAction; pendingAiAction = null; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; if (['create_service','update_service','delete_service','archive_service','restore_service','remove_company_price'].includes(normAction.type)) pendingServiceDraft = null; }
       else { pendingAiAction = normAction; pendingClientAction = null; pendingDeleteAction = null; pendingChoiceAction = null; pendingMgmtAction = null; const choice = normAction ? disambiguateCreateAction(text, normAction) : null; if (choice) pendingChoiceAction = choice; }
     } else if (!/^(salva|conferma|ok salva|si salva|sì salva|registra|elimina|cancella)$/i.test(String(text || '').trim())) {
       pendingAiAction = null;
@@ -2388,6 +2561,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       pendingChoiceAction = null;
       pendingMgmtAction = null;
       pendingInterventionDraft = null;
+      pendingServiceDraft = null;
     }
     let reply = data.reply || data.answer || data.message || (data.output && String(data.output)) || (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content);
     if (pendingClientAction && !reply) reply = describeClientAction(pendingClientAction);
@@ -2812,8 +2986,15 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     }
     if (refused.length) addMsg('system','Non importati in modalità base: ' + refused.join(', ') + '. Copia il testo negli appunti Rural Vet AI oppure colleghiamo un backend per PDF/DOCX.');
   };
+  window.rvAiQuick = function(text, sendNow){
+    ensureShell();
+    const inp = $('rvAiInput');
+    if (inp) { inp.value = String(text || ''); inp.focus(); }
+    if (sendNow) window.rvAiSend();
+  };
   window.rvAiSend = async function(){
     ensureShell(); if (busy) return;
+    if (typeof current !== 'undefined' && current && typeof rvAiAllowedFor === 'function' && !rvAiAllowedFor(current)) { addMsg('bot', 'Rural Vet AI non è abilitata per questo account.'); const gInp = $('rvAiInput'); if (gInp) gInp.value = ''; return; }
     const input = $('rvAiInput');
     const text = (input && input.value ? input.value.trim() : '');
     if (!text && !pendingImage) return;
@@ -2822,7 +3003,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     if (input) { input.value = ''; autoGrow(input); }
     if (/^\s*(fine|stop|basta|chiudi conversazione|termina)\s*\.?$/i.test(text)) { stopVoiceLoop('Conversazione vocale conclusa.'); window.rvAiRemoveImage(); return; }
     if (isCancelCommand(text)) { window.rvAiRemoveImage(); clearPendingActions(); return; }
-    if (pendingInterventionDraft && !isSaveCommand(text)) { setBusy(true); typing(true, 'Continuo la bozza intervento...'); try { lastQuickReplies = []; const reply = await smartReply(label); typing(false); addMsg('bot', reply, mergeQuickReplies(lastQuickReplies, defaultQuickReplies()), lastAiChart); } catch(e){ typing(false); addMsg('bot','Non riesco a continuare la bozza. Dettaglio: ' + (e && e.message ? e.message : e)); } finally { window.rvAiRemoveImage(); setBusy(false); } return; }
+    if ((pendingInterventionDraft || pendingServiceDraft) && !isSaveCommand(text)) { setBusy(true); typing(true, pendingServiceDraft ? 'Continuo la bozza listino...' : 'Continuo la bozza intervento...'); try { lastQuickReplies = []; const reply = await smartReply(label); typing(false); addMsg('bot', reply, mergeQuickReplies(lastQuickReplies, defaultQuickReplies()), lastAiChart); } catch(e){ typing(false); addMsg('bot','Non riesco a continuare la bozza. Dettaglio: ' + (e && e.message ? e.message : e)); } finally { window.rvAiRemoveImage(); setBusy(false); } return; }
     if (pendingChoiceAction && handleChoiceAnswer(text)) { window.rvAiRemoveImage(); return; }
     if (pendingAiAction && actionNeedsWhen(pendingAiAction) && handlePendingWhenAnswer(text)) { window.rvAiRemoveImage(); return; }
     if (isDeleteConfirmCommand(text) && pendingDeleteAction) { window.rvAiRemoveImage(); savePendingDeleteAction(); return; }
@@ -2839,6 +3020,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
 
   function injectHomeButton(){
     const page = $('p-oggi');
+    if (typeof current !== 'undefined' && current && typeof rvAiAllowedFor === 'function' && !rvAiAllowedFor(current)) return;
     if (!page || page.querySelector('#rvAiHomeCard')) return;
     const card = document.createElement('div');
     card.id = 'rvAiHomeCard'; card.className = 'card';
@@ -3322,7 +3504,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   function cloudGetLatest(){
     return detectMode().then(function(mode){
       if (mode === 'backend') {
-        return fetch(backendBase() + '/api/db/load').then(function(r){
+        return fetch(backendBase() + '/api/db/load', { headers:(typeof rvAuthHeaders==='function'?rvAuthHeaders():{}) }).then(function(r){
           if (!r.ok) throw new Error('cloud latest ' + r.status);
           return r.json();
         });
@@ -3337,7 +3519,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   function cloudPutDb(dbObj){
     return detectMode().then(function(mode){
       if (mode === 'backend') {
-        return fetch(backendBase() + '/api/db/save', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ db: dbObj }) }).then(function(r){
+        return fetch(backendBase() + '/api/db/save', { method:'POST', headers:Object.assign({ 'Content-Type':'application/json' }, (typeof rvAuthHeaders==='function'?rvAuthHeaders():{})), body: JSON.stringify({ db: dbObj }) }).then(function(r){
           if (!r.ok) throw new Error('cloud put ' + r.status);
           return r.json().catch(function(){ return {}; });
         });
