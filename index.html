@@ -83,7 +83,12 @@ button[data-tab="impost"]{--rv-tab-icon:url("data:image/svg+xml,%3Csvg xmlns='ht
 <script>
 const $=id=>document.getElementById(id), eur=n=>'€'+(Number(n)||0).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}), iso=()=>new Date().toISOString().slice(0,10), fmt=d=>{let x=new Date(d+'T12:00');return x.toLocaleDateString('it-IT',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})};
 fmtLong=d=>{let x=new Date(d+'T12:00');return x.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase())};
-const SYNC={binId:'69f1d3de856a68218987163d',apiKey:'$2a$10$DOPytrLfjqz1znLxBKNe5edSn/FH5RnMLBlFT/ciSDTqqShKLdnja'};
+/* v9.1 · La master key JSONBin NON vive più nell'HTML: il sync cloud passa
+   SOLO dal backend autenticato (/api/db/load e /api/db/save). Se il backend
+   è irraggiungibile il gestionale lavora sulla copia locale del browser.
+   Ricordati di RUOTARE la vecchia chiave su jsonbin.io: quella pubblicata
+   nelle versioni precedenti dell'HTML è compromessa. */
+const SYNC={binId:'',apiKey:''};
 let current=null, loginTarget=null, tab='oggi', dashMode='oggi', dashFrom='', dashTo='', activeListino=0;
 /* RV9 · autenticazione: niente più password in chiaro nel client.
    I profili base hanno solo l'hash; il token firmato arriva dal backend. */
@@ -107,23 +112,27 @@ const baseProfiles=[{id:'ruralvet',name:'Rural Vet',role:'company',passHash:'158
 let db={aziende:[{id:1,nome:'Az. Agr. Fratelli Conti',addr:'Via Cascina 12, Rottofreno',piva:'02345678901',tel:'3331111111',prezzi:{},km:18},{id:2,nome:'Cascina Belloni',addr:'Strada Campagna 55, Gossolengo',piva:'05678901234',tel:'3334444444',prezzi:{},km:9},{id:3,nome:'Allevamento Rossi',addr:'Via Po 7, San Giorgio Piacentino',piva:'06789012345',tel:'3335555555',prezzi:{},km:3}],prest:[{id:1,nome:'Visita di allevamento',cat:'Visite',price:80},{id:2,nome:'Visita clinica',cat:'Visite',price:35},{id:3,nome:'Visita urgenza',cat:'Visite',price:60},{id:4,nome:'Visita riproduttiva',cat:'Riproduzione',price:20},{id:5,nome:'Ecografia gravidanza',cat:'Riproduzione',price:25},{id:6,nome:'Vaccinazione',cat:'Profilassi',price:8},{id:7,nome:'Trattamento mastite',cat:'Terapia',price:30},{id:8,nome:'Cesareo',cat:'Chirurgia',price:350},{id:9,nome:'Indennità chiamata',cat:'Diritti',price:25},{id:10,nome:'Urgenza notturna/festiva',cat:'Diritti',price:50}],int:[],fatture:[],cfg:{iva:22,orsKey:'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjA5ZmFhYmNlMDE3NzRjYTViMzUwNGYzM2M1OTg4MzExIiwiaCI6Im11cm11cjY0In0=',nextFatt:1,kmRates:{medardo:.74,edoardo:.74},personal:{medardo:{email:'docmedo@libero.it',tel:'+39 335205861',home:'Via Napoli 3, San Giorgio Piacentino'},edoardo:{email:'',tel:'',home:''}},collaboratori:[]},kmCache:{},ids:{az:4,prest:11,int:1,fatt:1}};
 function allProfiles(){return baseProfiles.concat((db.cfg.collaboratori||[]).map(c=>({...c,role:'worker',desc:'Team Member'})))}function workers(){return allProfiles().filter(p=>p.role==='worker')}function userName(id){return (allProfiles().find(p=>p.id===id)||{name:id}).name}function initials(n){return n.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase()}function sessionLabel(s){return s==='p'?'Pomeriggio':s==='n'?'Notte':'Mattina'}function sessionIcon(s){return s==='p'?'🌇':s==='n'?'🌙':'🌅'}function sessionOrder(s){return s==='n'?2:s==='p'?1:0}function defaultSession(){let h=new Date().getHours();return h>=20?'n':(h>=14?'p':'m')}
 function renderProfiles(){$('profiles').innerHTML=allProfiles().map(p=>`<div class="prof" onclick="selectProfile('${p.id}')"><div class="avatar">${p.icon||initials(p.name)}</div><div><strong>${p.name}</strong><span>${p.desc}</span></div></div>`).join('')}function selectProfile(id){loginTarget=allProfiles().find(p=>p.id===id);$('profiles').classList.add('hidden');var aiLogin=$('rvAiLoginCard');if(aiLogin)aiLogin.classList.add('hidden');$('pwdBox').classList.remove('hidden');$('pwdWho').textContent=loginTarget.name;$('pwd').value='';$('err').textContent='';setTimeout(()=>$('pwd').focus(),100)}function cancelLogin(){loginTarget=null;$('profiles').classList.remove('hidden');var aiLogin=$('rvAiLoginCard');if(aiLogin)aiLogin.classList.remove('hidden');$('pwdBox').classList.add('hidden')}async function doLogin(){if(!loginTarget)return;const pwd=$('pwd').value;
-  let okLocal=false;
-  if(loginTarget.passHash){const h=await rvSha256(pwd);okLocal=(h&&h===loginTarget.passHash);}
-  else okLocal=(pwd===loginTarget.pass); /* collaboratori aggiunti da Rural Vet */
-  if(!okLocal){$('err').textContent='Password errata';return}
+  /* v9.1 · prima decide il BACKEND (così funzionano gli override RV_USER_<ID>_PASS
+     su Render); l'hash locale serve solo come fallback quando il backend è
+     irraggiungibile (modalità offline, AI disattivata). */
   $('err').textContent='Accesso in corso…';
   const auth=await rvBackendLogin(loginTarget.id,pwd);
   if(!auth.ok){window.rvAuth=null;try{localStorage.removeItem('rv_auth')}catch(e){}}
-  if(!auth.ok&&!auth.offline&&auth.status===401){$('err').textContent='Password errata';return}
-  current=loginTarget;$('err').textContent='';$('login').style.display='none';$('app').style.display='flex';loadCloud(()=>{setupUser();go(current.role==='company'?'dashboard':'oggi')})}function logout(){current=null;window.rvAuth=null;try{localStorage.removeItem('rv_auth')}catch(e){}$('app').style.display='none';$('login').style.display='flex';cancelLogin();renderProfiles()}
-function setSaveState(t,c){let el=$('saveState');if(el){el.textContent=t||'';el.style.color=c||'var(--mut)';}}function saveCloud(){setSaveState('Salvataggio…','var(--amb)');fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':SYNC.apiKey},body:JSON.stringify(db)}).then(()=>{let tm=new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});setSaveState('✓ Salvato '+tm,'var(--g2)')}).catch(()=>setSaveState('⚠ Errore salvataggio','var(--red)'))}function loadCloud(cb){fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId+'/latest',{headers:{'X-Master-Key':SYNC.apiKey}}).then(r=>r.json()).then(j=>{if(j&&j.record&&j.record.aziende){db=j.record;migrate()}cb&&cb()}).catch(()=>cb&&cb())}function migrate(){db.aziende=db.aziende||[];let demo=[
-{id:901,nome:'Az. Agr. La Bellotta',addr:'Strada della Bellotta 1, 29010 Pontenure PC',piva:'DEMO901',tel:'',prezzi:{},km:12},
-{id:902,nome:'Cascina Bosco Gerolo',addr:'Via Gerolo 1, 29020 Rivergaro PC',piva:'DEMO902',tel:'',prezzi:{},km:20},
-{id:903,nome:'Az. Agr. Val Nure',addr:'Via Genova 78, 29027 Podenzano PC',piva:'DEMO903',tel:'',prezzi:{},km:9},
-{id:904,nome:'Stalla San Polo',addr:'Via Emilia Parmense 156, 29122 Piacenza PC',piva:'DEMO904',tel:'',prezzi:{},km:18},
-{id:905,nome:'Allevamento Croara',addr:'Località Croara, 29010 Gazzola PC',piva:'DEMO905',tel:'',prezzi:{},km:24},
-{id:906,nome:'Cascina Bacedasco',addr:'Località Bacedasco, 29014 Castell\'Arquato PC',piva:'DEMO906',tel:'',prezzi:{},km:38}
-];demo.forEach(d=>{if(!db.aziende.some(a=>a.id===d.id||String(a.nome).toLowerCase()===d.nome.toLowerCase()))db.aziende.push(d)});db.aziende.forEach(a=>{a.prezzi=a.prezzi||{};a.km=Number(a.km)||0});db.prest=db.prest||[];db.int=db.int||[];db.int.forEach(i=>{if(!i.sess)i.sess='m'});db.fatture=db.fatture||[];db.fatture.forEach(f=>{if(f.pagata===undefined)f.pagata=false});db.cfg=db.cfg||{};db.cfg.iva=(db.cfg.iva===undefined||db.cfg.iva===null||db.cfg.iva===''?22:Number(db.cfg.iva));db.cfg.orsKey=db.cfg.orsKey||'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjA5ZmFhYmNlMDE3NzRjYTViMzUwNGYzM2M1OTg4MzExIiwiaCI6Im11cm11cjY0In0=';db.kmCache=db.kmCache||{};db.cfg.kmRates=db.cfg.kmRates||{medardo:.74,edoardo:.74};db.cfg.personal=db.cfg.personal||{};workers().forEach(w=>{db.cfg.personal[w.id]=db.cfg.personal[w.id]||{email:'',tel:'',home:''};db.cfg.kmRates[w.id]=Number(db.cfg.kmRates[w.id]||.74)});db.cfg.collaboratori=db.cfg.collaboratori||[];db.ids=db.ids||{};db.ids.az=db.ids.az||((Math.max(0,...db.aziende.map(a=>a.id)))+1);db.ids.prest=db.ids.prest||((Math.max(0,...db.prest.map(p=>p.id)))+1);db.ids.int=db.ids.int||((Math.max(0,...db.int.map(i=>i.id)))+1);db.ids.fatt=db.ids.fatt||((Math.max(0,...db.fatture.map(f=>f.id)))+1);db.cfg.nextFatt=db.cfg.nextFatt||((Math.max(0,...db.fatture.map(f=>f.num||0)))+1)}
+  if(!auth.ok&&!auth.offline){$('err').textContent=auth.status===429?'Troppi tentativi: riprova tra qualche minuto':'Password errata';return}
+  if(!auth.ok&&auth.offline){
+    let okLocal=false;
+    if(loginTarget.passHash){const h=await rvSha256(pwd);okLocal=(h&&h===loginTarget.passHash);}
+    else okLocal=(pwd===loginTarget.pass); /* collaboratori aggiunti da Rural Vet */
+    if(!okLocal){$('err').textContent='Password errata';return}
+    $('err').textContent='Backend non raggiungibile: accesso offline (AI e sync cloud disattivati)';
+  }
+  current=loginTarget;if(auth.ok)$('err').textContent='';$('login').style.display='none';$('app').style.display='flex';loadCloud(()=>{setupUser();go(current.role==='company'?'dashboard':'oggi')})}function logout(){current=null;window.rvAuth=null;try{localStorage.removeItem('rv_auth')}catch(e){}$('app').style.display='none';$('login').style.display='flex';cancelLogin();renderProfiles()}
+function setSaveState(t,c){let el=$('saveState');if(el){el.textContent=t||'';el.style.color=c||'var(--mut)';}}function saveCloud(){setSaveState('Salvataggio…','var(--amb)');fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':SYNC.apiKey},body:JSON.stringify(db)}).then(()=>{let tm=new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});setSaveState('✓ Salvato '+tm,'var(--g2)')}).catch(()=>setSaveState('⚠ Errore salvataggio','var(--red)'))}function loadCloud(cb){fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId+'/latest',{headers:{'X-Master-Key':SYNC.apiKey}}).then(r=>r.json()).then(j=>{if(j&&j.record&&j.record.aziende){db=j.record;migrate()}cb&&cb()}).catch(()=>cb&&cb())}function migrate(){db.aziende=db.aziende||[];
+/* v9.1.1 · rimossa la semina automatica delle aziende 901-906 a ogni
+   caricamento: le aziende sono reali e vivono nel database cloud; la semina
+   serviva solo al primo avvio e faceva ricomparire un'azienda anche dopo
+   un'eventuale eliminazione volontaria. Nessuna azienda viene toccata. */
+db.aziende.forEach(a=>{a.prezzi=a.prezzi||{};a.km=Number(a.km)||0});db.prest=db.prest||[];db.int=db.int||[];db.int.forEach(i=>{if(!i.sess)i.sess='m'});db.fatture=db.fatture||[];db.fatture.forEach(f=>{if(f.pagata===undefined)f.pagata=false});db.cfg=db.cfg||{};db.cfg.iva=(db.cfg.iva===undefined||db.cfg.iva===null||db.cfg.iva===''?22:Number(db.cfg.iva));db.cfg.orsKey=db.cfg.orsKey||'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjA5ZmFhYmNlMDE3NzRjYTViMzUwNGYzM2M1OTg4MzExIiwiaCI6Im11cm11cjY0In0=';db.kmCache=db.kmCache||{};db.cfg.kmRates=db.cfg.kmRates||{medardo:.74,edoardo:.74};db.cfg.personal=db.cfg.personal||{};workers().forEach(w=>{db.cfg.personal[w.id]=db.cfg.personal[w.id]||{email:'',tel:'',home:''};db.cfg.kmRates[w.id]=Number(db.cfg.kmRates[w.id]||.74)});db.cfg.collaboratori=db.cfg.collaboratori||[];db.ids=db.ids||{};db.ids.az=db.ids.az||((Math.max(0,...db.aziende.map(a=>a.id)))+1);db.ids.prest=db.ids.prest||((Math.max(0,...db.prest.map(p=>p.id)))+1);db.ids.int=db.ids.int||((Math.max(0,...db.int.map(i=>i.id)))+1);db.ids.fatt=db.ids.fatt||((Math.max(0,...db.fatture.map(f=>f.id)))+1);db.cfg.nextFatt=db.cfg.nextFatt||((Math.max(0,...db.fatture.map(f=>f.num||0)))+1)}
 
 function addrOfAzienda(id){let a=db.aziende.find(x=>x.id==id);return a&&a.addr?a.addr:''}
 function kmKey(a,b){return [String(a||'').trim().toLowerCase(),String(b||'').trim().toLowerCase()].sort().join('|||')}
@@ -136,14 +145,19 @@ async function routeForAsync(day,uid){
   for(let sess of ['m','p','n']){
     let si=ints.filter(i=>(i.sess||'m')===sess);
     if(!si.length)continue;
-    let prevAddr=home,prevKm=0;
+    let prevAddr=home,prevKm=0,seen={},firstLeg=true;
     stops.push({from:'',to:home,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true});
     for(let idx=0;idx<si.length;idx++){
       let i=si[idx],a=db.aziende.find(x=>x.id==i.allId)||{nome:'Azienda',addr:'',km:0};
-      let fallback=idx===0?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
+      /* v9.1 · due interventi nella stessa azienda nello stesso giro = una sola tratta
+         (allineato al motore kmRoutes usato dall'AI: prima la pagina Km contava doppio). */
+      let aKey=String(a.id!=null?a.id:(a.addr||a.nome));
+      if(seen[aKey])continue;
+      seen[aKey]=true;
+      let fallback=firstLeg?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
       let km=await fetchKm(prevAddr,a.addr||a.nome,fallback);total+=km;
-      stops.push({from:idx?prevAddr:home,to:a.nome,km:km,ora:i.ora||'',sess});
-      prevAddr=a.addr||a.nome;prevKm=Number(a.km||0);
+      stops.push({from:firstLeg?home:prevAddr,to:a.nome,km:km,ora:i.ora||'',sess});
+      prevAddr=a.addr||a.nome;prevKm=Number(a.km||0);firstLeg=false;
     }
     let km=await fetchKm(prevAddr,home,prevKm);total+=km;
     stops.push({from:'Ultima azienda',to:home,km:km,ora:'Rientro '+sessionLabel(sess),sess});
@@ -157,14 +171,17 @@ function scopeInts(mode){if(current.role==='company')return db.int;return db.int
   ['m','p','n'].forEach(sess=>{
     let si=ints.filter(i=>(i.sess||'m')===sess);
     if(!si.length)return;
-    let prevAddr=home,prevKm=0;
+    let prevAddr=home,prevKm=0,seen={},firstLeg=true;
     stops.push({from:'',to:home,km:0,ora:sessionIcon(sess)+' Partenza '+sessionLabel(sess),sessionStart:true});
-    si.forEach((i,idx)=>{
+    si.forEach(i=>{
       let a=db.aziende.find(x=>x.id==i.allId)||{nome:'Azienda',addr:'',km:0};
-      let fallback=idx===0?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
+      let aKey=String(a.id!=null?a.id:(a.addr||a.nome));
+      if(seen[aKey])return; /* v9.1 · niente tratta doppia sulla stessa azienda nello stesso giro */
+      seen[aKey]=true;
+      let fallback=firstLeg?Number(a.km||0):(Math.abs(Number(a.km||0)-prevKm)||Number(a.km||0));
       let seg=cachedKm(prevAddr,a.addr||a.nome,fallback);total+=seg;
-      stops.push({from:idx?prevAddr:home,to:a.nome,km:seg,ora:i.ora||'',sess});
-      prevAddr=a.addr||a.nome;prevKm=Number(a.km||0);
+      stops.push({from:firstLeg?home:prevAddr,to:a.nome,km:seg,ora:i.ora||'',sess});
+      prevAddr=a.addr||a.nome;prevKm=Number(a.km||0);firstLeg=false;
     });
     let seg=cachedKm(prevAddr,home,prevKm);total+=seg;
     stops.push({from:'Ultima azienda',to:home,km:seg,ora:'Rientro '+sessionLabel(sess),sess});
@@ -227,7 +244,9 @@ function canManageIntervento(i){return current&&(current.role==='company'||i.use
 function cardInt(i,showMoney=true){let az=db.aziende.find(a=>a.id==i.allId)||{nome:'Azienda'};let serv=i.servs.map(s=>{let p=db.prest.find(p=>p.id==s.id);return (p?p.nome:'?')+' x'+s.qty}).join(', ');let can=canManageIntervento(i);let money=showMoney&&current&&(current.role==='company'||current.id==='medardo');return `<div class="card"><div class="cardHead"><div class="grow"><div class="name">${az.nome}</div><div class="meta">${sessionIcon(i.sess)} ${sessionLabel(i.sess)} · ${i.ora||''} · ${userName(i.userId)} · ${serv}</div></div>${money?`<div class="amount">${eur(i.tot)}</div>`:''}</div><div class="tags">${current&&current.role==='company'?`<span class="tag ${i.fatt?'':'amb'}">${i.fatt?'Fatturato':'Da fatturare'}</span>`:''}${can?`<button class="tag blue" style="border:0;cursor:pointer" onclick="editIntervento(${i.id})">Modifica</button><button class="tag red" style="border:0;cursor:pointer" onclick="deleteIntervento(${i.id})">Elimina</button>`:''}</div></div>`}
 function rOggi(){let ints=scopeInts().filter(i=>i.data===iso());let tot=ints.reduce((s,i)=>s+i.tot,0),km=current.role==='company'?workers().reduce((s,w)=>s+dayKmFor(iso(),w.id),0):dayKmFor(iso(),current.id);let split=current.role==='company'?`<div class="grid2">${workers().map(w=>{let wi=db.int.filter(i=>i.data===iso()&&i.userId===w.id),wt=wi.reduce((s,i)=>s+i.tot,0),wk=dayKmFor(iso(),w.id);return `<div class="card"><div class="name">${w.name}</div><div class="tags"><span class="tag">${wi.length} interventi</span><span class="tag blue">${wk.toFixed(1)} km</span><span class="tag amb">${eur(wt)}</span></div></div>`}).join('')}</div>`:'';let stats=`<div class="stat"><div class="v">${ints.length}</div><div class="l">Interventi</div></div><div class="stat"><div class="v">${km.toFixed(1)}</div><div class="l">Km</div></div>`;if(current.role==='company'||current.id==='medardo')stats+=`<div class="stat"><div class="v">${eur(tot)}</div><div class="l">Incasso</div></div>`;let addBtn=current.role!=='company'?`<button class="btn" onclick="openIntervento()">+ Intervento</button>`:'';$('p-oggi').innerHTML=`<div class="titleRow"><div><div class="h">Oggi</div><div class="todayDate">${fmtLong(iso())}</div></div>${addBtn}</div><div class="stats">${stats}</div>${split}${ints.length?ints.sort((a,b)=>{let so=sessionOrder(a.sess)-sessionOrder(b.sess);return so||((a.ora||'').localeCompare(b.ora||''))}).map(i=>cardInt(i,current.role==='company'||current.id==='medardo')).join(''):'<div class="empty">Nessun intervento oggi</div>'}`}
 function rAziende(){if(current.role!=='company')return go('oggi');$('p-aziende').innerHTML=`<div class="titleRow"><div class="h">Aziende</div><button class="btn" onclick="openAzienda()">+ Azienda</button></div>${db.aziende.map(a=>`<div class="card"><div class="cardHead"><div class="grow"><div class="name">${a.nome}</div><div class="meta">${a.addr||''} · ${a.piva||''}</div></div><button class="btn secondary" onclick="openAzienda(${a.id})">Modifica</button></div></div>`).join('')||'<div class="empty">Nessuna azienda</div>'}`}
-function rKm(){let days=[...new Set(scopeInts().map(i=>i.data))].sort().reverse(),sel=window.kmDay||days[0]||iso();window.kmDay=sel;let users=current.role==='company'?workers():[current];$('p-km').innerHTML=`<div class="titleRow"><div><div class="h">Rimborsi Km</div><div class="small">Percorsi calcolati da casa del collaboratore verso gli indirizzi delle aziende</div></div></div><div class="selectLine"><input class="input" type="date" value="${sel}" onchange="window.kmDay=this.value;rKm()"></div><div class="helpBox">Se l'indirizzo di casa e gli indirizzi aziendali sono compilati, l'app calcola i km stradali reali tramite OpenRouteService e li salva in cache. In assenza di connessione/API usa il km fallback dell'azienda.</div><div class="empty">Calcolo percorsi…</div>`;Promise.all(users.map(u=>routeForAsync(sel,u.id).then(r=>({u,r})))).then(results=>{let total=0,rimb=0;let html=`<div class="titleRow"><div><div class="h">Rimborsi Km</div><div class="small">Dettaglio spostamenti del ${fmt(sel)}</div></div></div><div class="selectLine"><input class="input" type="date" value="${sel}" onchange="window.kmDay=this.value;rKm()"></div><div class="helpBox">Base calcolo: ogni sessione è separata. Mattina: casa → aziende → casa pranzo; Pomeriggio: casa → aziende → casa; Notte: casa → urgenza → casa.</div>`;html+=results.map(({u,r})=>{total+=r.total;rimb+=r.total*kmRate(u.id);return `<div class="card"><div class="cardHead"><div class="grow"><div class="name">${u.name}</div><div class="meta">Casa: ${homeLabel(u.id)} · ${r.total.toFixed(1)} km · ${eur(kmRate(u.id))}/km · rimborso ${eur(r.total*kmRate(u.id))}</div></div></div>${r.stops.map(s=>`<div class="routeLine"><span class="dot"></span><div class="grow"><b>${s.sessionStart?s.to:(s.from+' → '+s.to)}</b><div class="small">${s.ora}</div></div><b>${Number(s.km||0).toFixed(1)} km</b></div>`).join('')||'<div class="empty">Nessuno spostamento</div>'}</div>`}).join('');$('p-km').innerHTML=`<div class="stats"><div class="stat"><div class="v">${total.toFixed(1)}</div><div class="l">Km totali</div></div><div class="stat"><div class="v">${eur(rimb)}</div><div class="l">Rimborso</div></div><div class="stat"><div class="v">${users.length}</div><div class="l">Profili</div></div></div>`+html;saveCloud()})}
+function rKm(){let days=[...new Set(scopeInts().map(i=>i.data))].sort().reverse(),sel=window.kmDay||days[0]||iso();window.kmDay=sel;let users=current.role==='company'?workers():[current];$('p-km').innerHTML=`<div class="titleRow"><div><div class="h">Rimborsi Km</div><div class="small">Percorsi calcolati da casa del collaboratore verso gli indirizzi delle aziende</div></div></div><div class="selectLine"><input class="input" type="date" value="${sel}" onchange="window.kmDay=this.value;rKm()"></div><div class="helpBox">Se l'indirizzo di casa e gli indirizzi aziendali sono compilati, l'app calcola i km stradali reali tramite OpenRouteService e li salva in cache. In assenza di connessione/API usa il km fallback dell'azienda.</div><div class="empty">Calcolo percorsi…</div>`;const _kmCacheBefore=JSON.stringify(db.kmCache||{});Promise.all(users.map(u=>routeForAsync(sel,u.id).then(r=>({u,r})))).then(results=>{let total=0,rimb=0;let html=`<div class="titleRow"><div><div class="h">Rimborsi Km</div><div class="small">Dettaglio spostamenti del ${fmt(sel)}</div></div></div><div class="selectLine"><input class="input" type="date" value="${sel}" onchange="window.kmDay=this.value;rKm()"></div><div class="helpBox">Base calcolo: ogni sessione è separata. Mattina: casa → aziende → casa pranzo; Pomeriggio: casa → aziende → casa; Notte: casa → urgenza → casa.</div>`;html+=results.map(({u,r})=>{total+=r.total;rimb+=r.total*kmRate(u.id);return `<div class="card"><div class="cardHead"><div class="grow"><div class="name">${u.name}</div><div class="meta">Casa: ${homeLabel(u.id)} · ${r.total.toFixed(1)} km · ${eur(kmRate(u.id))}/km · rimborso ${eur(r.total*kmRate(u.id))}</div></div></div>${r.stops.map(s=>`<div class="routeLine"><span class="dot"></span><div class="grow"><b>${s.sessionStart?s.to:(s.from+' → '+s.to)}</b><div class="small">${s.ora}</div></div><b>${Number(s.km||0).toFixed(1)} km</b></div>`).join('')||'<div class="empty">Nessuno spostamento</div>'}</div>`}).join('');$('p-km').innerHTML=`<div class="stats"><div class="stat"><div class="v">${total.toFixed(1)}</div><div class="l">Km totali</div></div><div class="stat"><div class="v">${eur(rimb)}</div><div class="l">Rimborso</div></div><div class="stat"><div class="v">${users.length}</div><div class="l">Profili</div></div></div>`+html;
+/* v9.1 · salva in cloud solo se la cache km è davvero cambiata: prima ogni apertura della pagina Km lanciava un salvataggio completo del DB. */
+if(JSON.stringify(db.kmCache||{})!==_kmCacheBefore)saveCloud()})}
 function periodInts(){let all=db.int;if(dashMode==='oggi')return all.filter(i=>i.data===iso());if(dashMode==='settimana'){let d=new Date(),day=d.getDay()||7;d.setDate(d.getDate()-day+1);let f=d.toISOString().slice(0,10);return all.filter(i=>i.data>=f&&i.data<=iso())}if(dashMode==='mese')return all.filter(i=>i.data.slice(0,7)===iso().slice(0,7));if(dashMode==='anno')return all.filter(i=>i.data.slice(0,4)===iso().slice(0,4));if(dashMode==='custom')return all.filter(i=>(!dashFrom||i.data>=dashFrom)&&(!dashTo||i.data<=dashTo));return all}
 function inDashPeriod(d){let arr=periodInts();if(dashMode==='oggi')return d===iso();if(dashMode==='settimana'){let x=new Date(),day=x.getDay()||7;x.setDate(x.getDate()-day+1);let f=x.toISOString().slice(0,10);return d>=f&&d<=iso()}if(dashMode==='mese')return d.slice(0,7)===iso().slice(0,7);if(dashMode==='anno')return d.slice(0,4)===iso().slice(0,4);if(dashMode==='custom')return (!dashFrom||d>=dashFrom)&&(!dashTo||d<=dashTo);return true}
 function pie(data){let sum=data.reduce((s,d)=>s+d.val,0)||1,ang=-Math.PI/2,paths='',cols=['#12301a','#1f5a30','#39a05b','#9bbf77','#d0a94f'];data.forEach((d,i)=>{let sw=2*Math.PI*d.val/sum,x1=50+42*Math.cos(ang),y1=50+42*Math.sin(ang),x2=50+42*Math.cos(ang+sw),y2=50+42*Math.sin(ang+sw);paths+=`<path d="M50,50 L${x1},${y1} A42,42 0 ${sw>Math.PI?1:0},1 ${x2},${y2} Z" fill="${cols[i%cols.length]}" stroke="#fff" stroke-width="2"></path>`;ang+=sw});return `<svg viewBox="0 0 100 100">${paths}</svg>`}
@@ -300,7 +319,10 @@ function saveLocalCopy(reason){try{rvEnsureMeta();let payload={reason:reason||'a
 function loadLocalCopy(){try{let raw=localStorage.getItem(RV_SAVE.lastKey);if(!raw)return null;let p=JSON.parse(raw);return p&&p.db?p:null}catch(e){return null}}
 function mergeArr(local,remote,tomb){let out=new Map();(remote||[]).forEach(x=>{if(x&&x.id!==undefined&&!(tomb&&tomb[x.id]))out.set(String(x.id),x)});(local||[]).forEach(x=>{if(x&&x.id!==undefined)out.set(String(x.id),x)});return Array.from(out.values())}
 function mergeCollaboratori(local,remote){let out=new Map();(remote||[]).forEach(x=>x&&x.id&&out.set(String(x.id),x));(local||[]).forEach(x=>x&&x.id&&out.set(String(x.id),x));return Array.from(out.values())}
-function mergeCloudRecord(remote){if(!remote||!remote.aziende)return;rvEnsureMeta();remote.deleted=remote.deleted||{int:{},fatture:{},aziende:{},prest:{}};let localDeleted=db.deleted||{};db.deleted={int:{...(remote.deleted.int||{}),...(localDeleted.int||{})},fatture:{...(remote.deleted.fatture||{}),...(localDeleted.fatture||{})},aziende:{...(remote.deleted.aziende||{}),...(localDeleted.aziende||{})},prest:{...(remote.deleted.prest||{}),...(localDeleted.prest||{})}};db.aziende=mergeArr(db.aziende,remote.aziende,db.deleted.aziende);db.prest=mergeArr(db.prest,remote.prest,db.deleted.prest);db.int=mergeArr(db.int,remote.int,db.deleted.int);db.fatture=mergeArr(db.fatture,remote.fatture,db.deleted.fatture);db.cfg={...(remote.cfg||{}),...(db.cfg||{})};db.cfg.personal={...((remote.cfg&&remote.cfg.personal)||{}),...(db.cfg.personal||{})};db.cfg.kmRates={...((remote.cfg&&remote.cfg.kmRates)||{}),...(db.cfg.kmRates||{})};db.cfg.collaboratori=mergeCollaboratori((db.cfg&&db.cfg.collaboratori)||[],(remote.cfg&&remote.cfg.collaboratori)||[]);db.kmCache={...(remote.kmCache||{}),...(db.kmCache||{})};db.ids=db.ids||{};let maxId=arr=>Math.max(0,...(arr||[]).map(x=>Number(x.id)||0));db.ids.az=Math.max(Number(db.ids.az)||0,Number(remote.ids&&remote.ids.az)||0,maxId(db.aziende)+1);db.ids.prest=Math.max(Number(db.ids.prest)||0,Number(remote.ids&&remote.ids.prest)||0,maxId(db.prest)+1);db.ids.int=Math.max(Number(db.ids.int)||0,Number(remote.ids&&remote.ids.int)||0,maxId(db.int)+1);db.ids.fatt=Math.max(Number(db.ids.fatt)||0,Number(remote.ids&&remote.ids.fatt)||0,maxId(db.fatture)+1);db.cfg.nextFatt=Math.max(Number(db.cfg.nextFatt)||1,Number(remote.cfg&&remote.cfg.nextFatt)||1,(Math.max(0,...(db.fatture||[]).map(f=>Number(f.num)||0))+1));db.meta={...(remote.meta||{}),...(db.meta||{})};}
+function mergeCloudRecord(remote){if(!remote||!remote.aziende)return;rvEnsureMeta();remote.deleted=remote.deleted||{int:{},fatture:{},aziende:{},prest:{}};let localDeleted=db.deleted||{};db.deleted={int:{...(remote.deleted.int||{}),...(localDeleted.int||{})},fatture:{...(remote.deleted.fatture||{}),...(localDeleted.fatture||{})},aziende:{...(remote.deleted.aziende||{}),...(localDeleted.aziende||{})},prest:{...(remote.deleted.prest||{}),...(localDeleted.prest||{})}};db.aziende=mergeArr(db.aziende,remote.aziende,db.deleted.aziende);db.prest=mergeArr(db.prest,remote.prest,db.deleted.prest);db.int=mergeArr(db.int,remote.int,db.deleted.int);db.fatture=mergeArr(db.fatture,remote.fatture,db.deleted.fatture);db.cfg={...(remote.cfg||{}),...(db.cfg||{})};db.cfg.personal={...((remote.cfg&&remote.cfg.personal)||{}),...(db.cfg.personal||{})};db.cfg.kmRates={...((remote.cfg&&remote.cfg.kmRates)||{}),...(db.cfg.kmRates||{})};db.cfg.collaboratori=mergeCollaboratori((db.cfg&&db.cfg.collaboratori)||[],(remote.cfg&&remote.cfg.collaboratori)||[]);db.kmCache={...(remote.kmCache||{}),...(db.kmCache||{})};db.ids=db.ids||{};let maxId=arr=>Math.max(0,...(arr||[]).map(x=>Number(x.id)||0));db.ids.az=Math.max(Number(db.ids.az)||0,Number(remote.ids&&remote.ids.az)||0,maxId(db.aziende)+1);db.ids.prest=Math.max(Number(db.ids.prest)||0,Number(remote.ids&&remote.ids.prest)||0,maxId(db.prest)+1);db.ids.int=Math.max(Number(db.ids.int)||0,Number(remote.ids&&remote.ids.int)||0,maxId(db.int)+1);db.ids.fatt=Math.max(Number(db.ids.fatt)||0,Number(remote.ids&&remote.ids.fatt)||0,maxId(db.fatture)+1);/* v9.1.1 · se la numerazione fatture e' stata azzerata dalla pulizia (fattNumEpoch locale piu' recente),
+   il merge NON riporta il vecchio nextFatt dal cloud: si riparte davvero da 1. */
+if(Number((db.cfg&&db.cfg.fattNumEpoch)||0)>Number((remote.cfg&&remote.cfg.fattNumEpoch)||0)){db.cfg.nextFatt=Math.max(Number(db.cfg.nextFatt)||1,(Math.max(0,...(db.fatture||[]).map(f=>Number(f.num)||0))+1));}
+else{db.cfg.nextFatt=Math.max(Number(db.cfg.nextFatt)||1,Number(remote.cfg&&remote.cfg.nextFatt)||1,(Math.max(0,...(db.fatture||[]).map(f=>Number(f.num)||0))+1));}db.meta={...(remote.meta||{}),...(db.meta||{})};}
 function setSaveState(t,c){let el=$('saveState');if(el){el.textContent=t||'';el.style.color=c||'var(--mut)';}}
 function saveCloud(){rvEnsureMeta();saveLocalCopy('pre-cloud-save');if(!SYNC.binId||!SYNC.apiKey){setSaveState('⚠ Cloud non configurato','var(--red)');return Promise.resolve(false)}if(RV_SAVE.saving){RV_SAVE.dirty=true;setSaveState('Salvataggio in coda…','var(--amb)');return Promise.resolve(false)}RV_SAVE.saving=true;setSaveState('Salvataggio…','var(--amb)');return fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId+'/latest',{headers:{'X-Master-Key':SYNC.apiKey}}).then(r=>{if(!r.ok)throw new Error('cloud latest '+r.status);return r.json()}).then(j=>{if(j&&j.record)mergeCloudRecord(j.record);rvEnsureMeta();db.meta.lastSavedAt=rvNow();return fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':SYNC.apiKey},body:JSON.stringify(db)})}).then(r=>{if(!r.ok)throw new Error('cloud put '+r.status);return r.json().catch(()=>({}))}).then(()=>{RV_SAVE.saving=false;RV_SAVE.lastError=null;saveLocalCopy('cloud-saved');let tm=new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});setSaveState('✓ Salvato '+tm,'var(--g2)');if(RV_SAVE.dirty){RV_SAVE.dirty=false;return saveCloud()}return true}).catch(err=>{RV_SAVE.saving=false;RV_SAVE.lastError=err;saveLocalCopy('cloud-error-local-copy');setSaveState('⚠ Non salvato in cloud','var(--red)');console.error('RuralVet save error',err);return false})}
 function loadCloud(cb){if(!SYNC.binId||!SYNC.apiKey){let loc=loadLocalCopy();if(loc&&loc.db){db=loc.db;migrate();setSaveState('Copia locale','var(--amb)')}cb&&cb();return}setSaveState('Caricamento cloud…','var(--amb)');fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId+'/latest',{headers:{'X-Master-Key':SYNC.apiKey}}).then(r=>{if(!r.ok)throw new Error('cloud load '+r.status);return r.json()}).then(j=>{if(j&&j.record&&j.record.aziende){db=j.record;migrate();saveLocalCopy('cloud-loaded');let when=db.meta&&db.meta.lastSavedAt?new Date(db.meta.lastSavedAt).toLocaleString('it-IT'):'';setSaveState('✓ Cloud caricato'+(when?' · '+when:''),'var(--g2)')}cb&&cb()}).catch(err=>{let loc=loadLocalCopy();if(loc&&loc.db){db=loc.db;migrate();setSaveState('Offline · copia locale','var(--amb)')}else{setSaveState('⚠ Cloud non raggiungibile','var(--red)')}console.error('RuralVet load error',err);cb&&cb()})}
@@ -310,7 +332,10 @@ function downloadInterventiCSV(){let rows=(db.int||[]).map(i=>{let az=(db.aziend
 function downloadFattureCSV(){let rows=(db.fatture||[]).map(f=>({id:f.id,numero:f.num,data:f.data,azienda:f.azNome,imponibile:f.imponibile,iva:f.iva,ivaRate:f.ivaRate,totale:f.tot,pagata:f.pagata?'SI':'NO',interventi:(f.interventi||[]).join('|')}));rvDownloadCSV('RuralVet_fatture_'+rvFileStamp()+'.csv',['id','numero','data','azienda','imponibile','iva','ivaRate','totale','pagata','interventi'],rows)}
 function downloadAziendeCSV(){let rows=(db.aziende||[]).map(a=>({id:a.id,nome:a.nome,indirizzo:a.addr,piva:a.piva,telefono:a.tel,kmFallback:a.km}));rvDownloadCSV('RuralVet_aziende_'+rvFileStamp()+'.csv',['id','nome','indirizzo','piva','telefono','kmFallback'],rows)}
 function restoreBackupJSON(file){if(!file)return;if(!current||current.role!=='company')return alert('Solo Rural Vet può ripristinare un backup.');if(!confirm('Ripristinare questo backup? Verrà salvato anche in cloud. Prima scarica un backup dell’attuale situazione se hai dubbi.'))return;let reader=new FileReader();reader.onload=function(){try{let obj=JSON.parse(reader.result);let nd=obj.db||obj;if(!nd||!nd.aziende||!nd.prest)throw new Error('Formato backup non valido');db=nd;migrate();rvEnsureMeta();db.meta.restoredAt=rvNow();saveLocalCopy('manual-restore');saveCloud();setupUser();go(tab||'dashboard');alert('Backup ripristinato e salvataggio cloud avviato.')}catch(e){alert('Backup non valido: '+e.message)}};reader.readAsText(file)}
-function verifyCloud(){setSaveState('Verifica cloud…','var(--amb)');fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId+'/latest',{headers:{'X-Master-Key':SYNC.apiKey}}).then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{let n=j&&j.record&&j.record.int?j.record.int.length:0;setSaveState('✓ Cloud OK','var(--g2)');alert('Cloud raggiungibile. Interventi nel database: '+n)}).catch(e=>{setSaveState('⚠ Cloud non raggiungibile','var(--red)');alert('Non riesco a raggiungere JSONbin ora. I dati restano nella copia locale del browser e nei backup manuali.')})}
+function verifyCloud(){setSaveState('Verifica cloud…','var(--amb)');
+  /* v9.1 · verifica tramite il backend autenticato: la master key JSONBin non è più nel client. */
+  const base=(typeof rvBackendBase==='function'?rvBackendBase():'');
+  fetch(base+'/api/db/load',{headers:(typeof rvAuthHeaders==='function'?rvAuthHeaders():{})}).then(r=>{if(r.status===401)throw new Error('sessione');if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{let n=j&&j.record&&j.record.int?j.record.int.length:0;setSaveState('✓ Cloud OK','var(--g2)');alert('Cloud raggiungibile tramite backend. Interventi nel database: '+n)}).catch(e=>{setSaveState('⚠ Cloud non raggiungibile','var(--red)');alert(String(e&&e.message)==='sessione'?'Sessione scaduta: esci e rientra nel gestionale.':'Non riesco a raggiungere il cloud tramite il backend ora. I dati restano nella copia locale del browser e nei backup manuali.')})}
 const RV_ORIG_COMPANY_SETTINGS=rCompanySettings;
 rCompanySettings=function(){RV_ORIG_COMPANY_SETTINGS();let host=$('p-impost');if(!host)return;let last=(db.meta&&db.meta.lastSavedAt)?new Date(db.meta.lastSavedAt).toLocaleString('it-IT'):'non ancora disponibile';let local=loadLocalCopy();let localTxt=local&&local.savedAt?new Date(local.savedAt).toLocaleString('it-IT'):'non ancora disponibile';host.insertAdjacentHTML('beforeend',`<div class="backupCard"><div class="name"><span class="statusDot"></span>Sicurezza dati & backup</div><div class="backupNote">I dati vengono salvati automaticamente su JSONbin e, prima di ogni invio cloud, anche in una copia locale del browser. Il backup JSON qui sotto contiene tutto: aziende, interventi, fatture, collaboratori, listino, impostazioni e cache km.</div><div class="settingsMini">Ultimo salvataggio cloud: <b>${last}</b><br>Copia locale browser: <b>${localTxt}</b></div><div class="backupGrid"><button class="btn" onclick="downloadBackupJSON()">Scarica backup completo JSON</button><button class="btn secondary" onclick="verifyCloud()">Verifica cloud</button><button class="btn secondary" onclick="downloadInterventiCSV()">CSV interventi</button><button class="btn secondary" onclick="downloadFattureCSV()">CSV fatture</button><button class="btn secondary" onclick="downloadAziendeCSV()">CSV aziende</button><label class="importLabel">Ripristina backup JSON<input type="file" accept="application/json,.json" onchange="restoreBackupJSON(this.files[0]);this.value=''"/></label></div><div class="backupNote"><b>Regola pratica:</b> scarica un backup JSON almeno una volta a settimana e prima di aggiornare GitHub. Se un giorno JSONbin avesse problemi, questo file permette di ripristinare l’intero archivio.</div></div>`)};
 function deleteIntervento(id){let i=db.int.find(x=>x.id===id);if(!i||!canManageIntervento(i))return alert('Non puoi eliminare questo intervento');if(!confirm('Eliminare intervento?'))return;rvEnsureMeta();db.deleted.int[String(id)]=Date.now();db.int=db.int.filter(x=>x.id!==id);saveCloud();if(tab==='storico')rStorico();else go('oggi')}
@@ -414,7 +439,7 @@ window.rKm=function rKm(){
   let days=[...new Set(visibleInts.map(i=>i.data))].sort().reverse(),sel=window.kmDay||days[0]||iso();window.kmDay=sel;
   let users=current.role==='company'?rvWorkersKm():[current];
   $('p-km').innerHTML=`<div class="titleRow"><div><div class="h">Rimborsi Km</div><div class="small">Percorsi calcolati da casa del collaboratore verso gli indirizzi delle aziende</div></div></div><div class="selectLine"><input class="input" type="date" value="${sel}" onchange="window.kmDay=this.value;rKm()"></div><div class="helpBox">Edoardo Ronda è escluso dal calcolo km. Per gli altri profili, se indirizzi e API sono compilati, l'app calcola i km stradali reali e li salva in cache.</div><div class="empty">Calcolo percorsi...</div>`;
-  Promise.all(users.map(u=>routeForAsync(sel,u.id).then(r=>({u,r})))).then(results=>{let total=0,rimb=0;let html=`<div class="titleRow"><div><div class="h">Rimborsi Km</div><div class="small">Dettaglio spostamenti del ${fmt(sel)}</div></div></div><div class="selectLine"><input class="input" type="date" value="${sel}" onchange="window.kmDay=this.value;rKm()"></div><div class="helpBox">Base calcolo: ogni sessione è separata. Mattina: casa -> aziende -> casa pranzo; Pomeriggio: casa -> aziende -> casa; Notte: casa -> urgenza -> casa.</div>`;html+=results.map(({u,r})=>{total+=r.total;rimb+=r.total*kmRate(u.id);return `<div class="card"><div class="cardHead"><div class="grow"><div class="name">${rvEsc(u.name)}</div><div class="meta">Casa: ${rvEsc(homeLabel(u.id))} · ${r.total.toFixed(1)} km · ${eur(kmRate(u.id))}/km · rimborso ${eur(r.total*kmRate(u.id))}</div></div></div>${r.stops.map(s=>`<div class="routeLine"><span class="dot"></span><div class="grow"><b>${rvEsc(s.sessionStart?s.to:(s.from+' -> '+s.to))}</b><div class="small">${rvEsc(s.ora)}</div></div><b>${Number(s.km||0).toFixed(1)} km</b></div>`).join('')||'<div class="empty">Nessuno spostamento</div>'}</div>`}).join('');$('p-km').innerHTML=`<div class="stats"><div class="stat"><div class="v">${total.toFixed(1)}</div><div class="l">Km totali</div></div><div class="stat"><div class="v">${eur(rimb)}</div><div class="l">Rimborso</div></div><div class="stat"><div class="v">${users.length}</div><div class="l">Profili con km</div></div></div>`+html;saveCloud()});
+  const _kmCacheBefore=JSON.stringify(db.kmCache||{});Promise.all(users.map(u=>routeForAsync(sel,u.id).then(r=>({u,r})))).then(results=>{let total=0,rimb=0;let html=`<div class="titleRow"><div><div class="h">Rimborsi Km</div><div class="small">Dettaglio spostamenti del ${fmt(sel)}</div></div></div><div class="selectLine"><input class="input" type="date" value="${sel}" onchange="window.kmDay=this.value;rKm()"></div><div class="helpBox">Base calcolo: ogni sessione è separata. Mattina: casa -> aziende -> casa pranzo; Pomeriggio: casa -> aziende -> casa; Notte: casa -> urgenza -> casa.</div>`;html+=results.map(({u,r})=>{total+=r.total;rimb+=r.total*kmRate(u.id);return `<div class="card"><div class="cardHead"><div class="grow"><div class="name">${rvEsc(u.name)}</div><div class="meta">Casa: ${rvEsc(homeLabel(u.id))} · ${r.total.toFixed(1)} km · ${eur(kmRate(u.id))}/km · rimborso ${eur(r.total*kmRate(u.id))}</div></div></div>${r.stops.map(s=>`<div class="routeLine"><span class="dot"></span><div class="grow"><b>${rvEsc(s.sessionStart?s.to:(s.from+' -> '+s.to))}</b><div class="small">${rvEsc(s.ora)}</div></div><b>${Number(s.km||0).toFixed(1)} km</b></div>`).join('')||'<div class="empty">Nessuno spostamento</div>'}</div>`}).join('');$('p-km').innerHTML=`<div class="stats"><div class="stat"><div class="v">${total.toFixed(1)}</div><div class="l">Km totali</div></div><div class="stat"><div class="v">${eur(rimb)}</div><div class="l">Rimborso</div></div><div class="stat"><div class="v">${users.length}</div><div class="l">Profili con km</div></div></div>`+html;saveCloud()});
 };
 function rvCompanyRows(){
   let q=(window.azSearch||'').toLowerCase().trim();
@@ -3203,7 +3228,7 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
     window.kmDay = sel;
     let users = current.role === 'company' ? (typeof rvWorkersKm === 'function' ? rvWorkersKm() : workers()) : [current];
     $('p-km').innerHTML = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div><div class="selectLine"><input class="input" type="date" value="'+esc(sel)+'" onchange="window.kmDay=this.value;rKm()"></div><div class="card"><div class="name">Calcolo percorsi...</div><div class="small">Sto preparando le tappe della giornata e i km per ogni spostamento.</div></div>';
-    Promise.all(users.map(u=>routeForAsync(sel,u.id).then(r=>({u,r})))).then(results=>{
+    const _kmCacheBefore=JSON.stringify(db.kmCache||{});Promise.all(users.map(u=>routeForAsync(sel,u.id).then(r=>({u,r})))).then(results=>{
       let total=0, rimb=0, segments=0;
       results.forEach(({u,r})=>{ total += Number(r.total||0); rimb += Number(r.total||0)*kmRate(u.id); segments += (r.stops||[]).filter(s=>!s.sessionStart).length; });
       let top = '<div class="titleRow"><div><div class="h">Rimborsi Km</div></div></div>'+
@@ -3487,16 +3512,19 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       return String(ep).replace(/\/api\/.*$/, '');
     } catch(e){ return ''; }
   }
-  var RV_CLOUD = { mode: null, checking: null };
+  var RV_CLOUD = { mode: null, checking: null, retryAt: 0 };
   function detectMode(){
-    if (RV_CLOUD.mode) return Promise.resolve(RV_CLOUD.mode);
+    /* v9.1 · un ping fallito (es. cold start di Render) non blocca più la
+       sessione in modalità locale: si ritenta dopo 30 secondi. */
+    if (RV_CLOUD.mode === 'backend') return Promise.resolve('backend');
+    if (RV_CLOUD.mode === 'direct' && Date.now() < RV_CLOUD.retryAt) return Promise.resolve('direct');
     if (RV_CLOUD.checking) return RV_CLOUD.checking;
     var base = backendBase();
-    if (!base) { RV_CLOUD.mode = 'direct'; return Promise.resolve('direct'); }
+    if (!base) { RV_CLOUD.mode = 'direct'; RV_CLOUD.retryAt = Date.now() + 30000; return Promise.resolve('direct'); }
     RV_CLOUD.checking = fetch(base + '/api/db/ping', { method:'GET' })
       .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(j){ RV_CLOUD.mode = (j && j.ok && j.configured) ? 'backend' : 'direct'; return RV_CLOUD.mode; })
-      .catch(function(){ RV_CLOUD.mode = 'direct'; return 'direct'; })
+      .then(function(j){ RV_CLOUD.mode = (j && j.ok && j.configured) ? 'backend' : 'direct'; RV_CLOUD.retryAt = Date.now() + 30000; return RV_CLOUD.mode; })
+      .catch(function(){ RV_CLOUD.mode = 'direct'; RV_CLOUD.retryAt = Date.now() + 30000; return 'direct'; })
       .finally(function(){ RV_CLOUD.checking = null; });
     return RV_CLOUD.checking;
   }
@@ -4070,6 +4098,57 @@ button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible
 
   /* esposto per i test automatici */
   window.__rvAiProTest = { formatMessage: formatMessage, inline: inline };
+})();
+</script>
+
+<script>
+/* v9.1.1 · Pulizia visite di prova (solo profilo Rural Vet).
+   rvWipeVisite(): elimina TUTTI gli interventi e le fatture (più tratte km,
+   registro AI e cestino listino), lasciando intatti aziende, listino,
+   collaboratori e impostazioni. Prima scarica automaticamente un backup
+   completo. Le eliminazioni vengono marcate in db.deleted così il merge
+   multi-dispositivo non le fa ricomparire da una copia cloud/locale vecchia. */
+(function(){
+  'use strict';
+  window.rvWipeVisite = function rvWipeVisite(){
+    if (!current || current.role !== 'company') return alert('Solo Rural Vet puo\u0300 fare la pulizia completa.');
+    var nInt = (db.int || []).length, nFatt = (db.fatture || []).length;
+    if (!nInt && !nFatt) return alert('Non ci sono visite o fatture da eliminare: il gestionale e\u0300 gia\u0300 pulito.');
+    if (!confirm('Eliminare TUTTE le visite di prova?\n\n- Interventi: ' + nInt + '\n- Fatture: ' + nFatt + '\n- Tratte km, registro AI e cestino listino\n\nAziende, listino, collaboratori e impostazioni restano.\nPrima della pulizia scarico automaticamente un backup completo.')) return;
+    try { downloadBackupJSON(); } catch(e) { console.warn('backup pre-pulizia non riuscito', e); if (!confirm('Non sono riuscito a scaricare il backup automatico. Procedo comunque con la pulizia?')) return; }
+    rvEnsureMeta();
+    (db.int || []).forEach(function(i){ if (i && i.id !== undefined) db.deleted.int[String(i.id)] = Date.now(); });
+    (db.fatture || []).forEach(function(f){ if (f && f.id !== undefined) db.deleted.fatture[String(f.id)] = Date.now(); });
+    db.int = [];
+    db.fatture = [];
+    db.kmRoutes = [];
+    db.kmRoutesMeta = {};
+    db.auditLog = [];
+    db.tombstones = [];
+    if (db.cfg) {
+      /* tengo solo le istruzioni insegnate all'AI, via il diario eventi di prova */
+      db.cfg.aiMemory = (db.cfg.aiMemory || []).filter(function(m){ return m && m.kind === 'istruzione'; });
+      db.cfg.nextFatt = 1; /* la numerazione fatture riparte da 1 (gli id interni NON vengono riusati) */
+      db.cfg.fattNumEpoch = Date.now(); /* marca l'azzeramento: il merge cloud non riporta il vecchio numero */
+    }
+    saveCloud();
+    alert('Pulizia completata: ' + nInt + ' interventi e ' + nFatt + ' fatture eliminati.\nLa numerazione fatture riparte da 1. Buon lavoro!');
+    if (typeof go === 'function') go(current.role === 'company' ? 'dashboard' : 'oggi');
+  };
+  /* Card in Impostazioni (profilo company) */
+  if (typeof rCompanySettings === 'function') {
+    var prevSettings = rCompanySettings;
+    rCompanySettings = function(){
+      prevSettings();
+      var host = $('p-impost');
+      if (!host || document.getElementById('rvCleanupCard')) return;
+      host.insertAdjacentHTML('beforeend',
+        '<div class="backupCard" id="rvCleanupCard"><div class="name">\ud83e\uddf9 Pulizia visite di prova</div>' +
+        '<div class="backupNote">Per iniziare a usare il gestionale sul serio: elimina in un colpo tutte le visite di prova (interventi, fatture, tratte km e diario AI). <b>Aziende, listino, collaboratori e impostazioni restano intatti.</b> Prima della pulizia viene scaricato automaticamente un backup completo, e la numerazione fatture riparte da 1.</div>' +
+        '<div class="backupGrid"><button class="btn" onclick="rvWipeVisite()">Elimina tutte le visite di prova</button></div>' +
+        '<div class="backupNote"><b>Nota:</b> l\u2019operazione si propaga a tutti i dispositivi al prossimo sync (le eliminazioni sono registrate, le vecchie copie non ricompaiono).</div></div>');
+    };
+  }
 })();
 </script>
 
