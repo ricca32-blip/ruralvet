@@ -331,7 +331,7 @@ function downloadBackupJSON(){if(!current||current.role!=='company')return alert
 function downloadInterventiCSV(){let rows=(db.int||[]).map(i=>{let az=(db.aziende||[]).find(a=>a.id==i.allId)||{};let prest=(i.servs||[]).map(s=>{let p=(db.prest||[]).find(p=>p.id==s.id)||{};return (p.nome||s.id)+' x'+s.qty}).join(' | ');return{id:i.id,data:i.data,ora:i.ora,sessione:sessionLabel(i.sess),collaboratore:userName(i.userId),azienda:az.nome||'',indirizzo:az.addr||'',prestazioni:prest,note:i.note||'',imponibile:i.tot||0,fatturato:i.fatt?'SI':'NO'}});rvDownloadCSV('RuralVet_interventi_'+rvFileStamp()+'.csv',['id','data','ora','sessione','collaboratore','azienda','indirizzo','prestazioni','note','imponibile','fatturato'],rows)}
 function downloadFattureCSV(){let rows=(db.fatture||[]).map(f=>({id:f.id,numero:f.num,data:f.data,azienda:f.azNome,imponibile:f.imponibile,iva:f.iva,ivaRate:f.ivaRate,totale:f.tot,pagata:f.pagata?'SI':'NO',interventi:(f.interventi||[]).join('|')}));rvDownloadCSV('RuralVet_fatture_'+rvFileStamp()+'.csv',['id','numero','data','azienda','imponibile','iva','ivaRate','totale','pagata','interventi'],rows)}
 function downloadAziendeCSV(){let rows=(db.aziende||[]).map(a=>({id:a.id,nome:a.nome,indirizzo:a.addr,piva:a.piva,telefono:a.tel,kmFallback:a.km}));rvDownloadCSV('RuralVet_aziende_'+rvFileStamp()+'.csv',['id','nome','indirizzo','piva','telefono','kmFallback'],rows)}
-function restoreBackupJSON(file){if(!file)return;if(!current||current.role!=='company')return alert('Solo Rural Vet può ripristinare un backup.');if(!confirm('Ripristinare questo backup? Verrà salvato anche in cloud. Prima scarica un backup dell’attuale situazione se hai dubbi.'))return;let reader=new FileReader();reader.onload=function(){try{let obj=JSON.parse(reader.result);let nd=obj.db||obj;if(!nd||!nd.aziende||!nd.prest)throw new Error('Formato backup non valido');db=nd;migrate();rvEnsureMeta();db.meta.restoredAt=rvNow();saveLocalCopy('manual-restore');saveCloud();setupUser();go(tab||'dashboard');alert('Backup ripristinato e salvataggio cloud avviato.')}catch(e){alert('Backup non valido: '+e.message)}};reader.readAsText(file)}
+function restoreBackupJSON(file){if(!file)return;if(!current||current.role!=='company')return alert('Solo Rural Vet può ripristinare un backup.');if(!confirm('Ripristinare questo backup? Verrà salvato anche in cloud. Prima scarica un backup dell’attuale situazione se hai dubbi.'))return;let reader=new FileReader();reader.onload=function(){try{let obj=JSON.parse(reader.result);let nd=obj.db||obj;if(!nd||!nd.aziende||!nd.prest)throw new Error('Formato backup non valido');/* v9.1.2 · il ripristino è una scelta esplicita: marco i record come "modificati adesso" così battono i tombstone delle eliminazioni fatte dopo il backup (Pulizia inclusa) e non vengono ri-cancellati al merge cloud */let rvRestoreStamp=Date.now();['int','fatture','aziende','prest'].forEach(k=>{(nd[k]||[]).forEach(r=>{if(r&&r.id!==undefined)r.updatedAt=rvRestoreStamp})});db=nd;migrate();rvEnsureMeta();db.meta.restoredAt=rvNow();saveLocalCopy('manual-restore');saveCloud();setupUser();go(tab||'dashboard');alert('Backup ripristinato e salvataggio cloud avviato.')}catch(e){alert('Backup non valido: '+e.message)}};reader.readAsText(file)}
 function verifyCloud(){setSaveState('Verifica cloud…','var(--amb)');
   /* v9.1 · verifica tramite il backend autenticato: la master key JSONBin non è più nel client. */
   const base=(typeof rvBackendBase==='function'?rvBackendBase():'');
@@ -408,6 +408,15 @@ window.migrate=function migrate(){
   db.ids.int=Math.max(Number(db.ids.int)||0,rvMaxId(db.int)+1,1000000000001);
   db.ids.fatt=Math.max(Number(db.ids.fatt)||0,rvMaxId(db.fatture)+1,1000000000001);
   db.cfg.nextFatt=Number(db.cfg.nextFatt)||((Math.max(0,...db.fatture.map(f=>Number(f.num)||0)))+1);
+  /* v9.1.2 · spazzino tombstone: un intervento/fattura eliminato non deve
+     sopravvivere in NESSUNA copia caricata (cloud, locale, backup vecchio),
+     a meno che non sia stato modificato/ripristinato dopo l'eliminazione
+     (updatedAt più recente del tombstone). Copre anche il caricamento
+     integrale dal cloud, che non passa dal merge. */
+  if(typeof window.__rvTombDead==='function'&&db.deleted){
+    db.int=(db.int||[]).filter(i=>!window.__rvTombDead(i,db.deleted.int));
+    db.fatture=(db.fatture||[]).filter(f=>!window.__rvTombDead(f,db.deleted.fatture));
+  }
 };
 const RV2026_ORIG_MERGE = (typeof mergeCloudRecord==='function') ? mergeCloudRecord : null;
 if(RV2026_ORIG_MERGE){
@@ -3642,11 +3651,30 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
       });
     } catch(e){ console.warn('rvStampChanged', e); }
   }
+  /* v9.1.2 · BUGFIX resurrezione record eliminati.
+     Prima il tombstone (db.deleted) filtrava SOLO la copia remota: una copia
+     LOCALE vecchia (altro dispositivo o scheda rimasta aperta) ripassava il
+     record eliminato al merge e lo rispediva in cloud — ecco perché dopo la
+     Pulizia visite di prova poteva "rimanere" un intervento. Ora il tombstone
+     vale per entrambe le copie. Regola di conflitto: un record batte il
+     tombstone solo se è stato modificato/ripristinato DOPO l'eliminazione
+     (updatedAt più recente del tombstone); in quel caso il tombstone viene
+     rimosso (è il meccanismo usato dall'Annulla eliminazione e dal
+     ripristino backup, che marcano updatedAt = adesso). */
+  function rvTombDead(x, tomb){
+    if (!x || x.id === undefined || !tomb) return false;
+    var raw = tomb[String(x.id)];
+    if (raw === undefined) return false;
+    var t = Number(raw) || 0, u = Number(x.updatedAt) || 0;
+    if (u > t) { delete tomb[String(x.id)]; return false; } // modificato/ripristinato dopo l'eliminazione: vince il record
+    return true;
+  }
+  window.__rvTombDead = rvTombDead;
   window.mergeArr = function mergeArr(local, remote, tomb){
     var out = new Map();
-    (remote || []).forEach(function(x){ if (x && x.id !== undefined && !(tomb && tomb[x.id])) out.set(String(x.id), x); });
+    (remote || []).forEach(function(x){ if (x && x.id !== undefined && !rvTombDead(x, tomb)) out.set(String(x.id), x); });
     (local || []).forEach(function(x){
-      if (!x || x.id === undefined) return;
+      if (!x || x.id === undefined || rvTombDead(x, tomb)) return;
       var key = String(x.id);
       var r = out.get(key);
       if (!r) { out.set(key, x); return; }
@@ -4131,7 +4159,27 @@ button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible
       db.cfg.nextFatt = 1; /* la numerazione fatture riparte da 1 (gli id interni NON vengono riusati) */
       db.cfg.fattNumEpoch = Date.now(); /* marca l'azzeramento: il merge cloud non riporta il vecchio numero */
     }
-    saveCloud();
+    var afterWipe = function(){
+      /* v9.1.2 · BUGFIX: il salvataggio cloud fa un merge col cloud PRIMA di
+         scrivere, quindi un intervento presente solo in cloud (creato da un
+         altro dispositivo e mai scaricato qui) rientrava in db.int DOPO la
+         pulizia: era il classico "intervento superstite". Seconda passata:
+         se qualcosa è risorto dal merge, lo marco eliminato e risalvo. */
+      var backInt = (db.int || []).length, backFatt = (db.fatture || []).length;
+      if (!backInt && !backFatt) return;
+      rvEnsureMeta();
+      (db.int || []).forEach(function(i){ if (i && i.id !== undefined) db.deleted.int[String(i.id)] = Date.now(); });
+      (db.fatture || []).forEach(function(f){ if (f && f.id !== undefined) db.deleted.fatture[String(f.id)] = Date.now(); });
+      db.int = []; db.fatture = []; db.kmRoutes = []; db.kmRoutesMeta = {};
+      var p2 = saveCloud();
+      var done = function(){
+        if (typeof go === 'function') go(current && current.role === 'company' ? 'dashboard' : 'oggi');
+        if (typeof window.rvToast === 'function') window.rvToast('Eliminati anche ' + backInt + ' interventi e ' + backFatt + ' fatture arrivati dal cloud durante la pulizia.', { kind:'ok', ms: 6000 });
+      };
+      if (p2 && typeof p2.then === 'function') p2.then(done); else done();
+    };
+    var p = saveCloud();
+    if (p && typeof p.then === 'function') p.then(afterWipe);
     alert('Pulizia completata: ' + nInt + ' interventi e ' + nFatt + ' fatture eliminati.\nLa numerazione fatture riparte da 1. Buon lavoro!');
     if (typeof go === 'function') go(current.role === 'company' ? 'dashboard' : 'oggi');
   };
