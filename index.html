@@ -4646,4 +4646,134 @@ if(document.readyState==='complete'||document.readyState==='interactive')rvStart
 else document.addEventListener('DOMContentLoaded',rvStartAutoCloud);
 })();
 </script>
+<script>
+/* RV · Eliminazione aziende dall'account Rural Vet (role company).
+   Aggiunge il bottone "Elimina" sia nella lista Aziende sia nella scheda
+   di modifica, con doppia conferma se esistono interventi collegati. */
+(function(){
+  'use strict';
+
+  /* 'current' e' dichiarata con let nel primo blocco script: e' visibile
+     come identificatore globale ma NON come window.current. */
+  function rvIsCompany(){
+    try{ return typeof current!=='undefined' && current && current.role==='company'; }
+    catch(e){ return false; }
+  }
+
+  window.deleteAzienda = function deleteAzienda(id){
+    try{
+      if(!rvIsCompany()){alert('Solo l\u2019account Rural Vet pu\u00f2 eliminare le aziende');return}
+      id = Number(id);
+      var az = (db.aziende||[]).find(function(a){return Number(a.id)===id});
+      if(!az){alert('Azienda non trovata');return}
+      var linked = (db.int||[]).filter(function(i){return Number(i.allId)===id});
+      var msg = 'Eliminare definitivamente "'+az.nome+'" dalla lista aziende?';
+      if(!confirm(msg)) return;
+      if(linked.length){
+        if(!confirm('Attenzione: ci sono '+linked.length+' interventi registrati per questa azienda.\nGli interventi NON verranno cancellati ma resteranno senza azienda collegata.\n\nConfermi comunque l\u2019eliminazione?')) return;
+      }
+      db.aziende = (db.aziende||[]).filter(function(a){return Number(a.id)!==id});
+      if(typeof activeListino!=='undefined' && Number(activeListino)===id) activeListino=0;
+      if(typeof saveCloud==='function') saveCloud();
+      if(typeof closeModal==='function'){try{closeModal()}catch(e){}}
+      if(typeof rAziende==='function'){try{rAziende()}catch(e){}}
+      if(typeof rImpost==='function' && window.tab==='impost'){try{rImpost()}catch(e){}}
+    }catch(err){alert('Errore durante l\u2019eliminazione: '+err.message)}
+  };
+
+  /* estrae l'id azienda da onclick="openAzienda(123)" */
+  function azIdFromBtn(btn){
+    var m = String(btn.getAttribute('onclick')||'').match(/openAzienda\((\d+)\)/);
+    return m ? Number(m[1]) : 0;
+  }
+
+  function injectListDeleteButtons(){
+    if(!rvIsCompany()) return;
+    var page = document.getElementById('p-aziende');
+    if(!page) return;
+    page.querySelectorAll('.card .btn.secondary').forEach(function(btn){
+      var id = azIdFromBtn(btn);
+      if(!id) return;
+      if(btn.parentElement && btn.parentElement.querySelector('.rvDelAzBtn')) return;
+      var del = document.createElement('button');
+      del.className = 'btn red rvDelAzBtn';
+      del.style.marginLeft = '8px';
+      del.textContent = 'Elimina';
+      del.setAttribute('onclick','deleteAzienda('+id+')');
+      btn.insertAdjacentElement('afterend', del);
+    });
+  }
+
+  function injectModalDeleteButton(id){
+    if(!id || !rvIsCompany()) return;
+    var sheet = document.getElementById('sheet');
+    if(!sheet || sheet.querySelector('.rvDelAzBtn')) return;
+    var save = sheet.querySelector('button[onclick^="saveAzienda"]');
+    if(!save) return;
+    var del = document.createElement('button');
+    del.className = 'btn red rvDelAzBtn';
+    del.style.cssText = 'width:100%;margin-top:8px';
+    del.textContent = 'Elimina azienda';
+    del.setAttribute('onclick','deleteAzienda('+Number(id)+')');
+    save.insertAdjacentElement('afterend', del);
+  }
+
+  /* wrappa rAziende e openAzienda mantenendo le versioni esistenti */
+  function wrap(){
+    if(typeof window.rAziende==='function' && !window.rAziende.__rvDelWrapped){
+      var origList = window.rAziende;
+      var wrappedList = function(){
+        var r = origList.apply(this, arguments);
+        try{injectListDeleteButtons()}catch(e){}
+        return r;
+      };
+      wrappedList.__rvDelWrapped = true;
+      window.rAziende = wrappedList;
+    }
+    if(typeof window.openAzienda==='function' && !window.openAzienda.__rvDelWrapped){
+      var origOpen = window.openAzienda;
+      var wrappedOpen = function(id){
+        var r = origOpen.apply(this, arguments);
+        try{injectModalDeleteButton(id)}catch(e){}
+        return r;
+      };
+      wrappedOpen.__rvDelWrapped = true;
+      window.openAzienda = wrappedOpen;
+    }
+  }
+  wrap();
+  document.addEventListener('DOMContentLoaded', wrap);
+  /* rete di sicurezza: se altri script ridefiniscono le funzioni dopo, ri-wrappo */
+  setTimeout(wrap, 500);
+  setTimeout(wrap, 2000);
+
+  /* rete di sicurezza definitiva: osservo il DOM e inietto i bottoni
+     a ogni re-render della pagina Aziende o della scheda di modifica */
+  function startObservers(){
+    var page = document.getElementById('p-aziende');
+    if(page && !page.__rvDelObs){
+      page.__rvDelObs = true;
+      new MutationObserver(function(){try{injectListDeleteButtons()}catch(e){}})
+        .observe(page,{childList:true,subtree:true});
+      try{injectListDeleteButtons()}catch(e){}
+    }
+    var sheet = document.getElementById('sheet');
+    if(sheet && !sheet.__rvDelObs){
+      sheet.__rvDelObs = true;
+      new MutationObserver(function(){
+        try{
+          var save = sheet.querySelector('button[onclick^="saveAzienda("]');
+          if(!save) return;
+          var m = String(save.getAttribute('onclick')||'').match(/saveAzienda\((\d+)\)/);
+          var id = m ? Number(m[1]) : 0;
+          if(id) injectModalDeleteButton(id);
+        }catch(e){}
+      }).observe(sheet,{childList:true,subtree:true});
+    }
+  }
+  if(document.readyState==='complete'||document.readyState==='interactive') startObservers();
+  else document.addEventListener('DOMContentLoaded', startObservers);
+  setTimeout(startObservers, 1000);
+})();
+</script>
 </body></html>
