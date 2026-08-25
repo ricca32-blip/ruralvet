@@ -88,7 +88,13 @@ fmtLong=d=>{let x=new Date(d+'T12:00');return x.toLocaleDateString('it-IT',{week
    è irraggiungibile il gestionale lavora sulla copia locale del browser.
    Ricordati di RUOTARE la vecchia chiave su jsonbin.io: quella pubblicata
    nelle versioni precedenti dell'HTML è compromessa. */
-const SYNC={binId:'',apiKey:''};
+const SYNC={binId:'69f1d3de856a68218987163d',apiKey:'$2a$10$DOPytrLfjqz1znLxBKNe5edSn/FH5RnMLBlFT/ciSDTqqShKLdnja'};
+/* v9.2 · credenziali JSONBin precompilate su richiesta dell'utente: cosi il canale
+   diretto funziona subito senza reinserirle. ATTENZIONE: la master key nell'HTML
+   pubblicato e' visibile a chiunque apra il sorgente della pagina. Se un domani
+   vuoi toglierla, svuota i due valori qui sopra: il sync continuera' a passare dal
+   backend Render. Una modifica fatta da Impostazioni viene ricordata sul dispositivo. */
+try{var _rvSyncOvr=JSON.parse(localStorage.getItem('rv_sync_override')||'null');if(_rvSyncOvr&&_rvSyncOvr.binId&&_rvSyncOvr.apiKey){SYNC.binId=String(_rvSyncOvr.binId);SYNC.apiKey=String(_rvSyncOvr.apiKey);}}catch(e){}
 let current=null, loginTarget=null, tab='oggi', dashMode='oggi', dashFrom='', dashTo='', activeListino=0;
 /* RV9 · autenticazione: niente più password in chiaro nel client.
    I profili base hanno solo l'hash; il token firmato arriva dal backend. */
@@ -279,7 +285,7 @@ function fattRows(arr,aid){let map={};arr.forEach(i=>i.servs.forEach(s=>{let p=d
 .calHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.calHead button{border:0;background:#e9f4e8;color:var(--g);border-radius:12px;width:38px;height:38px;font-weight:900;font-size:20px}.calTitle{font-size:21px;font-weight:900;text-transform:capitalize}.calWeek,.calGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.calWeek div{text-align:center;color:var(--mut);font-size:15px;font-weight:900}.calDay{height:42px;border:0;border-radius:14px;background:transparent;color:#c8bda9;font-weight:900;font-size:17px}.calDay.work{background:#edf7ea;color:var(--g);box-shadow:inset 0 0 0 1px rgba(31,90,48,.08)}.calDay.on{background:linear-gradient(135deg,var(--g),var(--g2));color:white;box-shadow:0 10px 22px rgba(18,48,26,.22)}.dashHero{background:linear-gradient(135deg,#12301a,#1f5a30 65%,#39a05b);color:white;border-radius:28px;padding:18px;margin-bottom:14px;box-shadow:0 18px 48px rgba(18,48,26,.18)}.dashHero .mut{color:rgba(255,255,255,.72)}.payBadge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-weight:900;font-size:13px}.payBadge.ok{background:#dcfce7;color:#166534}.payBadge.no{background:#fff0cd;color:#a16207}.dangerLink{border:0;background:#fee2e2;color:var(--red);border-radius:13px;padding:10px 12px;font-weight:900}.settingsMini{font-size:13px;color:var(--mut);margin-top:6px}
 </style></head><body><button class="print" onclick="window.print()">Stampa / Salva PDF</button><div class="page"><div class="head"><div><div class="brand">Rural Vet</div><div class="mut">Fattura n. ${f.num}</div></div><div style="text-align:right"><b>Data</b><br>${fmt(f.data)}</div></div><div class="box"><b>Cliente</b><br>${f.azNome}</div><table><thead><tr><th>Prestazione</th><th>Q.tà</th><th>Prezzo unit.</th><th>Imponibile</th><th>IVA ${rate}%</th><th>Totale</th></tr></thead><tbody>${rows}</tbody></table><div class="tot"><div><span>Imponibile</span><b>${eur(f.imponibile)}</b></div><div><span>IVA ${rate}%</span><b>${eur(f.iva)}</b></div><div class="grand"><span>Totale fattura</span><b>${eur(f.tot)}</b></div></div><p class="mut">Documento generato da Rural Vet. Apri il file e premi “Stampa / Salva PDF” per consegnarlo al cliente.</p></div></body></html>`;let blob=new Blob([html],{type:'text/html'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Fattura_RuralVet_'+f.num+'.html';a.click();URL.revokeObjectURL(a.href)}
 function rStorico(){let base=current.role==='company'?db.int:db.int.filter(i=>i.userId===current.id);let wid=current.role==='company'?(window.stUser||'all'):current.id;let filteredForUser=base.filter(i=>current.role!=='company'||wid==='all'||i.userId===wid);let days=[...new Set(filteredForUser.map(i=>i.data))].sort();let curMonth=window.stMonth||(days.length?days[days.length-1].slice(0,7):iso().slice(0,7));window.stMonth=curMonth;let validDays=new Set(days);let d=window.stDay;if(!d||!validDays.has(d)){d=[...days].reverse().find(x=>x.slice(0,7)===curMonth)||days[days.length-1]||iso();window.stDay=d}let selector=current.role==='company'?`<select class="input" onchange="window.stUser=this.value;window.stDay='';rStorico()"><option value="all" ${wid==='all'?'selected':''}>Rural Vet</option>${workers().map(w=>`<option value="${w.id}" ${wid===w.id?'selected':''}>${w.name}</option>`).join('')}</select>`:'';function cal(){let [yy,mm]=curMonth.split('-').map(Number),first=new Date(yy,mm-1,1),last=new Date(yy,mm,0),start=(first.getDay()+6)%7,cells='',monthName=first.toLocaleDateString('it-IT',{month:'long',year:'numeric'}).replace(/^./,c=>c.toUpperCase());for(let i=0;i<start;i++)cells+='<button class="calDay" disabled></button>';for(let day=1;day<=last.getDate();day++){let ds=yy+'-'+String(mm).padStart(2,'0')+'-'+String(day).padStart(2,'0'),ok=validDays.has(ds);cells+=`<button class="calDay ${ok?'work':''} ${ds===d?'on':''}" ${ok?`onclick="window.stDay='${ds}';rStorico()"`:'disabled'}>${day}</button>`}return `<div class="calCard"><div class="calHead"><button onclick="moveStMonth(-1)">‹</button><div class="calTitle">${monthName}</div><button onclick="moveStMonth(1)">›</button></div><div class="calWeek"><div>Lu</div><div>Ma</div><div>Me</div><div>Gi</div><div>Ve</div><div>Sa</div><div>Do</div></div><div class="calGrid">${cells}</div></div>`}let ints=db.int.filter(i=>i.data===d&&(current.role==='company'?(wid==='all'||i.userId===wid):i.userId===current.id));$('p-storico').innerHTML=`<div class="titleRow"><div><div class="h">Storico</div><div class="small">Seleziona solo i giorni con attività registrate</div></div></div>${selector?`<div class="selectLine">${selector}</div>`:''}${cal()}${ints.length?ints.sort((a,b)=>(a.ora||'').localeCompare(b.ora||'')).map(i=>cardInt(i,current.role==='company'||current.id==='medardo')).join(''):'<div class="empty">Nessun intervento</div>'}`}
-function moveStMonth(delta){let m=window.stMonth||iso().slice(0,7);let d=new Date(m+'-01T12:00');d.setMonth(d.getMonth()+delta);window.stMonth=d.toISOString().slice(0,7);rStorico()}function rImpost(){if(current.role==='company')return rCompanySettings();let p=db.cfg.personal[current.id]||{};$('p-impost').innerHTML=`<div class="titleRow"><div class="h">Impostazioni</div></div><div class="card"><div class="formGrid"><div><div class="label">Email</div><input id="wEmail" class="input" value="${p.email||''}"></div><div><div class="label">Cellulare</div><input id="wTel" class="input" value="${p.tel||''}"></div><div><div class="label">Indirizzo di casa</div><input id="wHome" class="input" value="${p.home||''}" placeholder="Via..., Comune"></div><div class="small">Usato come casa per i km. La tariffa €/km viene scelta da Rural Vet.</div><button class="btn" onclick="saveWorkerSettings()">Salva</button></div></div>`}function saveWorkerSettings(){db.cfg.personal[current.id]={email:$('wEmail').value,tel:$('wTel').value,home:$('wHome').value};saveCloud();alert('Salvato')}function rCompanySettings(){let rates=workers().map(w=>`<div class="row" style="align-items:end;margin:10px 0"><div class="grow"><div class="label">${w.name} €/km</div><input class="input" type="number" step="0.01" value="${kmRate(w.id)}" onchange="db.cfg.kmRates['${w.id}']=Number(this.value)||0;saveCloud()"></div></div>`).join('');let vat=`<div class="card"><div class="name">Impostazioni fiscali e integrazioni</div><div class="grid2"><div><div class="label">VAT / IVA applicata in fattura</div><select class="input" onchange="db.cfg.iva=Number(this.value);saveCloud();rImpost()"><option value="22" ${(vatRate())===22?'selected':''}>22%</option><option value="10" ${(vatRate())===10?'selected':''}>10%</option><option value="0" ${(vatRate())===0?'selected':''}>Esente / 0%</option></select></div><div><div class="label">OpenRouteService API Key</div><input class="input" value="${db.cfg.orsKey||''}" onchange="db.cfg.orsKey=this.value.trim();saveCloud()"></div><div><div class="label">JSONbin Bin ID</div><input class="input" value="${SYNC.binId||''}" onchange="SYNC.binId=this.value.trim();saveCloud()"></div><div><div class="label">JSONbin Master Key</div><input class="input" type="password" value="${SYNC.apiKey||''}" onchange="SYNC.apiKey=this.value.trim();saveCloud()"></div></div><div class="settingsMini">IVA usata in preview, emissione fattura e pagina stampabile. JSONbin salva i dati in cloud. OpenRouteService calcola i km reali dagli indirizzi di casa e azienda.</div></div>`;let list=`<div class="card"><div class="name">Listino prezzi</div><select class="input" onchange="activeListino=Number(this.value);rImpost()"><option value="0">Tariffario base</option>${db.aziende.map(a=>`<option value="${a.id}" ${activeListino===a.id?'selected':''}>${a.nome}</option>`).join('')}</select>${activeListino?'<button class="btn secondary" style="margin-top:8px" onclick="resetPrezziAzienda()">Reset tariffario azienda</button>':''}<table class="table" style="margin-top:12px"><tr><th>Prestazione</th><th>Prezzo</th></tr>${db.prest.map(p=>`<tr><td>${p.nome}<div class="small">${p.cat}</div></td><td><input class="input" type="number" value="${activeListino?price(p.id,activeListino):p.price}" onchange="setPrice(${p.id},this.value)"></td></tr>`).join('')}</table></div>`;let coll=`<div class="card"><div class="name">Collaboratori</div><div class="grid2"><input id="newName" class="input" placeholder="Nome"><input id="newPass" class="input" placeholder="Password"></div><button class="btn" style="width:100%;margin-top:10px" onclick="addCollab()">Aggiungi collaboratore</button></div>`;$('p-impost').innerHTML=`<div class="titleRow"><div class="h">Impostazioni Company</div></div>${vat}<div class="card"><div class="name">Tariffe km</div>${rates}</div>${list}${coll}`}
+function moveStMonth(delta){let m=window.stMonth||iso().slice(0,7);let d=new Date(m+'-01T12:00');d.setMonth(d.getMonth()+delta);window.stMonth=d.toISOString().slice(0,7);rStorico()}function rImpost(){if(current.role==='company')return rCompanySettings();let p=db.cfg.personal[current.id]||{};$('p-impost').innerHTML=`<div class="titleRow"><div class="h">Impostazioni</div></div><div class="card"><div class="formGrid"><div><div class="label">Email</div><input id="wEmail" class="input" value="${p.email||''}"></div><div><div class="label">Cellulare</div><input id="wTel" class="input" value="${p.tel||''}"></div><div><div class="label">Indirizzo di casa</div><input id="wHome" class="input" value="${p.home||''}" placeholder="Via..., Comune"></div><div class="small">Usato come casa per i km. La tariffa €/km viene scelta da Rural Vet.</div><button class="btn" onclick="saveWorkerSettings()">Salva</button></div></div>`}function saveWorkerSettings(){db.cfg.personal[current.id]={email:$('wEmail').value,tel:$('wTel').value,home:$('wHome').value};saveCloud();alert('Salvato')}function rCompanySettings(){let rates=workers().map(w=>`<div class="row" style="align-items:end;margin:10px 0"><div class="grow"><div class="label">${w.name} €/km</div><input class="input" type="number" step="0.01" value="${kmRate(w.id)}" onchange="db.cfg.kmRates['${w.id}']=Number(this.value)||0;saveCloud()"></div></div>`).join('');let vat=`<div class="card"><div class="name">Impostazioni fiscali e integrazioni</div><div class="grid2"><div><div class="label">VAT / IVA applicata in fattura</div><select class="input" onchange="db.cfg.iva=Number(this.value);saveCloud();rImpost()"><option value="22" ${(vatRate())===22?'selected':''}>22%</option><option value="10" ${(vatRate())===10?'selected':''}>10%</option><option value="0" ${(vatRate())===0?'selected':''}>Esente / 0%</option></select></div><div><div class="label">OpenRouteService API Key</div><input class="input" value="${db.cfg.orsKey||''}" onchange="db.cfg.orsKey=this.value.trim();saveCloud()"></div><div><div class="label">JSONbin Bin ID</div><input class="input" value="${SYNC.binId||''}" onchange="SYNC.binId=this.value.trim();try{localStorage.setItem('rv_sync_override',JSON.stringify(SYNC))}catch(e){};saveCloud()"></div><div><div class="label">JSONbin Master Key</div><input class="input" type="password" value="${SYNC.apiKey||''}" onchange="SYNC.apiKey=this.value.trim();try{localStorage.setItem('rv_sync_override',JSON.stringify(SYNC))}catch(e){};saveCloud()"></div></div><div class="settingsMini">IVA usata in preview, emissione fattura e pagina stampabile. JSONbin salva i dati in cloud. OpenRouteService calcola i km reali dagli indirizzi di casa e azienda.</div></div>`;let list=`<div class="card"><div class="name">Listino prezzi</div><select class="input" onchange="activeListino=Number(this.value);rImpost()"><option value="0">Tariffario base</option>${db.aziende.map(a=>`<option value="${a.id}" ${activeListino===a.id?'selected':''}>${a.nome}</option>`).join('')}</select>${activeListino?'<button class="btn secondary" style="margin-top:8px" onclick="resetPrezziAzienda()">Reset tariffario azienda</button>':''}<table class="table" style="margin-top:12px"><tr><th>Prestazione</th><th>Prezzo</th></tr>${db.prest.map(p=>`<tr><td>${p.nome}<div class="small">${p.cat}</div></td><td><input class="input" type="number" value="${activeListino?price(p.id,activeListino):p.price}" onchange="setPrice(${p.id},this.value)"></td></tr>`).join('')}</table></div>`;let coll=`<div class="card"><div class="name">Collaboratori</div><div class="grid2"><input id="newName" class="input" placeholder="Nome"><input id="newPass" class="input" placeholder="Password"></div><button class="btn" style="width:100%;margin-top:10px" onclick="addCollab()">Aggiungi collaboratore</button></div>`;$('p-impost').innerHTML=`<div class="titleRow"><div class="h">Impostazioni Company</div></div>${vat}<div class="card"><div class="name">Tariffe km</div>${rates}</div>${list}${coll}`}
 function setPrice(pid,v){v=Number(v)||0;if(activeListino){let az=db.aziende.find(a=>a.id===activeListino);az.prezzi[pid]=v}else db.prest.find(p=>p.id===pid).price=v;db.int.filter(i=>!i.fatt).forEach(i=>i.tot=calcTot(i.servs,i.allId));saveCloud();rImpost()}function resetPrezziAzienda(){let az=db.aziende.find(a=>a.id===activeListino);if(az&&confirm('Reset tariffario azienda?')){az.prezzi={};saveCloud();rImpost()}}function addCollab(){let n=$('newName').value.trim(),p=$('newPass').value.trim();if(!n||!p)return alert('Compila nome e password');let id='c'+Date.now();db.cfg.collaboratori.push({id,name:n,pass:p,icon:initials(n)});db.cfg.personal[id]={email:'',tel:'',home:''};db.cfg.kmRates[id]=.74;saveCloud();setupUser();rImpost()}
 function openAzienda(id){let a=id?db.aziende.find(x=>x.id===id):{nome:'',addr:'',piva:'',tel:'',km:0};$('sheet').innerHTML=`<div class="titleRow"><div class="h">${id?'Modifica':'Nuova'} azienda</div><button class="btn secondary" onclick="closeModal()">Chiudi</button></div><div class="formGrid"><div><div class="label">Nome</div><input id="azNome" class="input" value="${a.nome}"></div><div><div class="label">Indirizzo</div><input id="azAddr" class="input" value="${a.addr||''}"></div><div class="grid2"><div><div class="label">P.IVA</div><input id="azPiva" class="input" value="${a.piva||''}"></div><div><div class="label">Telefono</div><input id="azTel" class="input" value="${a.tel||''}"></div></div><div><div class="label">Km fallback (solo se indirizzi/API non disponibili)</div><input id="azKm" class="input" type="number" value="${a.km||0}"></div><button class="btn" onclick="saveAzienda(${id||0})">Salva</button></div>`;openModal()}function saveAzienda(id){let d={nome:$('azNome').value,addr:$('azAddr').value,piva:$('azPiva').value,tel:$('azTel').value,km:Number($('azKm').value)||0,prezzi:{}};if(!d.nome)return alert('Nome obbligatorio');if(id)Object.assign(db.aziende.find(a=>a.id===id),d);else db.aziende.push({id:newId('az'),...d});saveCloud();closeModal();rAziende()}
 function servicePickerHTML(prefix, allId, selected){
@@ -500,7 +506,7 @@ window.rDash=function rDash(){if(current.role!=='company')return go('oggi');let 
 window.rImpost=function rImpost(){if(current.role==='company')return rCompanySettings();let p=db.cfg.personal[current.id]||{};let kmBlock=rvHasKm(current.id)?`<div><div class="label">Indirizzo di casa</div><input id="wHome" class="input" value="${rvEscAttr(p.home||'')}" placeholder="Via..., Comune"></div><div class="small">Usato come casa per i km. La tariffa €/km viene scelta da Rural Vet.</div>`:`<div class="rvNoKmBox">Per Edoardo Ronda i rimborsi km sono disattivati: non viene mostrata la pagina KM e non serve l'indirizzo di casa.</div>`;$('p-impost').innerHTML=`<div class="titleRow"><div class="h">Impostazioni</div></div><div class="card"><div class="formGrid"><div><div class="label">Email</div><input id="wEmail" class="input" value="${rvEscAttr(p.email||'')}"></div><div><div class="label">Cellulare</div><input id="wTel" class="input" value="${rvEscAttr(p.tel||'')}"></div>${kmBlock}<button class="btn" onclick="saveWorkerSettings()">Salva</button></div></div>`};
 window.saveWorkerSettings=function saveWorkerSettings(){let old=db.cfg.personal[current.id]||{};db.cfg.personal[current.id]={email:$('wEmail').value,tel:$('wTel').value,home:rvHasKm(current.id)&&$('wHome')?$('wHome').value:(old.home||'')};saveCloud();alert('Salvato')};
 function rvBackupBlock(){let last=(db.meta&&db.meta.lastSavedAt)?new Date(db.meta.lastSavedAt).toLocaleString('it-IT'):'non ancora disponibile';let local=typeof loadLocalCopy==='function'?loadLocalCopy():null;let localTxt=local&&local.savedAt?new Date(local.savedAt).toLocaleString('it-IT'):'non ancora disponibile';return `<div class="backupCard"><div class="name"><span class="statusDot"></span>Sicurezza dati & backup</div><div class="backupNote">I dati vengono salvati automaticamente su JSONbin e, prima di ogni invio cloud, anche in una copia locale del browser. Il backup JSON contiene tutto: aziende, interventi, fatture, collaboratori, listino, impostazioni e cache km.</div><div class="settingsMini">Ultimo salvataggio cloud: <b>${last}</b><br>Copia locale browser: <b>${localTxt}</b></div><div class="backupGrid"><button class="btn" onclick="downloadBackupJSON()">Scarica backup completo JSON</button><button class="btn secondary" onclick="verifyCloud()">Verifica cloud</button><button class="btn secondary" onclick="downloadInterventiCSV()">CSV interventi</button><button class="btn secondary" onclick="downloadFattureCSV()">CSV fatture</button><button class="btn secondary" onclick="downloadAziendeCSV()">CSV aziende</button><label class="importLabel">Ripristina backup JSON<input type="file" accept="application/json,.json" onchange="restoreBackupJSON(this.files[0]);this.value=''"/></label></div><div class="backupNote"><b>Regola pratica:</b> scarica un backup JSON almeno una volta a settimana e prima di aggiornare GitHub.</div></div>`}
-window.rCompanySettings=function rCompanySettings(){let rates=rvWorkersKm().map(w=>`<div class="row" style="align-items:end;margin:10px 0"><div class="grow"><div class="label">${rvEsc(w.name)} €/km</div><input class="input" type="number" step="0.01" value="${kmRate(w.id)}" onchange="db.cfg.kmRates['${w.id}']=Number(this.value)||0;saveCloud()"></div></div>`).join('');let vat=`<div class="card"><div class="name">Impostazioni fiscali e integrazioni</div><div class="grid2"><div><div class="label">VAT / IVA applicata in fattura</div><select class="input" onchange="db.cfg.iva=Number(this.value);saveCloud();rImpost()"><option value="22" ${(vatRate())===22?'selected':''}>22%</option><option value="10" ${(vatRate())===10?'selected':''}>10%</option><option value="0" ${(vatRate())===0?'selected':''}>Esente / 0%</option></select></div><div><div class="label">OpenRouteService API Key</div><input class="input" value="${rvEscAttr(db.cfg.orsKey||'')}" onchange="db.cfg.orsKey=this.value.trim();saveCloud()"></div><div><div class="label">JSONbin Bin ID</div><input class="input" value="${rvEscAttr(SYNC.binId||'')}" onchange="SYNC.binId=this.value.trim();saveCloud()"></div><div><div class="label">JSONbin Master Key</div><input class="input" type="password" value="${rvEscAttr(SYNC.apiKey||'')}" onchange="SYNC.apiKey=this.value.trim();saveCloud()"></div></div><div class="settingsMini">IVA usata in preview, emissione fattura e pagina stampabile. OpenRouteService calcola i km reali dagli indirizzi di casa e azienda.</div></div>`;let q=(window.listinoSearch||'').toLowerCase().trim();let listPrest=db.prest.filter(p=>!q||[p.nome,p.cat,p.tipo].some(v=>String(v||'').toLowerCase().includes(q)));let list=`<div class="card"><div class="name">Listino prestazioni, farmaci e fiale</div><div class="small">${db.prest.length} voci importate dai PDF. Puoi modificare il prezzo base o il prezzo specifico della singola azienda.</div><div class="rvListTools"><select class="input" onchange="activeListino=Number(this.value);rImpost()"><option value="0">Tariffario base</option>${db.aziende.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'it')).map(a=>`<option value="${a.id}" ${activeListino===a.id?'selected':''}>${rvEsc(a.nome)}</option>`).join('')}</select><input class="input" placeholder="Cerca nel listino..." value="${rvEscAttr(window.listinoSearch||'')}" oninput="window.listinoSearch=this.value;rImpost()"></div>${activeListino?'<button class="btn secondary" style="margin:0 0 10px" onclick="resetPrezziAzienda()">Reset tariffario azienda</button>':''}<div class="rvTableWrap"><table class="table"><tr><th>Voce</th><th>Tipo</th><th>Prezzo</th></tr>${listPrest.map(p=>`<tr><td>${rvEsc(p.nome)}<div class="small">${rvEsc(p.cat)}</div></td><td>${rvEsc(p.tipo||'')}</td><td><input class="input" type="number" step="0.01" value="${activeListino?price(p.id,activeListino):p.price}" onchange="setPrice(${p.id},this.value)"></td></tr>`).join('')}</table></div></div>`;let coll=`<div class="card"><div class="name">Collaboratori</div><div class="grid2"><input id="newName" class="input" placeholder="Nome"><input id="newPass" class="input" placeholder="Password"></div><button class="btn" style="width:100%;margin-top:10px" onclick="addCollab()">Aggiungi collaboratore</button></div>`;$('p-impost').innerHTML=`<div class="titleRow"><div><div class="h">Impostazioni Company</div><div class="small">Clienti Excel · Edoardo senza km</div></div></div>${vat}<div class="card"><div class="name">Tariffe km</div>${rates||'<div class="empty">Nessun collaboratore con km attivo</div>'}<div class="rvNoKmBox">Edoardo Ronda è escluso dal calcolo rimborsi km.</div></div>${list}${coll}${rvBackupBlock()}`};
+window.rCompanySettings=function rCompanySettings(){let rates=rvWorkersKm().map(w=>`<div class="row" style="align-items:end;margin:10px 0"><div class="grow"><div class="label">${rvEsc(w.name)} €/km</div><input class="input" type="number" step="0.01" value="${kmRate(w.id)}" onchange="db.cfg.kmRates['${w.id}']=Number(this.value)||0;saveCloud()"></div></div>`).join('');let vat=`<div class="card"><div class="name">Impostazioni fiscali e integrazioni</div><div class="grid2"><div><div class="label">VAT / IVA applicata in fattura</div><select class="input" onchange="db.cfg.iva=Number(this.value);saveCloud();rImpost()"><option value="22" ${(vatRate())===22?'selected':''}>22%</option><option value="10" ${(vatRate())===10?'selected':''}>10%</option><option value="0" ${(vatRate())===0?'selected':''}>Esente / 0%</option></select></div><div><div class="label">OpenRouteService API Key</div><input class="input" value="${rvEscAttr(db.cfg.orsKey||'')}" onchange="db.cfg.orsKey=this.value.trim();saveCloud()"></div><div><div class="label">JSONbin Bin ID</div><input class="input" value="${rvEscAttr(SYNC.binId||'')}" onchange="SYNC.binId=this.value.trim();try{localStorage.setItem('rv_sync_override',JSON.stringify(SYNC))}catch(e){};saveCloud()"></div><div><div class="label">JSONbin Master Key</div><input class="input" type="password" value="${rvEscAttr(SYNC.apiKey||'')}" onchange="SYNC.apiKey=this.value.trim();try{localStorage.setItem('rv_sync_override',JSON.stringify(SYNC))}catch(e){};saveCloud()"></div></div><div class="settingsMini">IVA usata in preview, emissione fattura e pagina stampabile. OpenRouteService calcola i km reali dagli indirizzi di casa e azienda.</div></div>`;let q=(window.listinoSearch||'').toLowerCase().trim();let listPrest=db.prest.filter(p=>!q||[p.nome,p.cat,p.tipo].some(v=>String(v||'').toLowerCase().includes(q)));let list=`<div class="card"><div class="name">Listino prestazioni, farmaci e fiale</div><div class="small">${db.prest.length} voci importate dai PDF. Puoi modificare il prezzo base o il prezzo specifico della singola azienda.</div><div class="rvListTools"><select class="input" onchange="activeListino=Number(this.value);rImpost()"><option value="0">Tariffario base</option>${db.aziende.slice().sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'it')).map(a=>`<option value="${a.id}" ${activeListino===a.id?'selected':''}>${rvEsc(a.nome)}</option>`).join('')}</select><input class="input" placeholder="Cerca nel listino..." value="${rvEscAttr(window.listinoSearch||'')}" oninput="window.listinoSearch=this.value;rImpost()"></div>${activeListino?'<button class="btn secondary" style="margin:0 0 10px" onclick="resetPrezziAzienda()">Reset tariffario azienda</button>':''}<div class="rvTableWrap"><table class="table"><tr><th>Voce</th><th>Tipo</th><th>Prezzo</th></tr>${listPrest.map(p=>`<tr><td>${rvEsc(p.nome)}<div class="small">${rvEsc(p.cat)}</div></td><td>${rvEsc(p.tipo||'')}</td><td><input class="input" type="number" step="0.01" value="${activeListino?price(p.id,activeListino):p.price}" onchange="setPrice(${p.id},this.value)"></td></tr>`).join('')}</table></div></div>`;let coll=`<div class="card"><div class="name">Collaboratori</div><div class="grid2"><input id="newName" class="input" placeholder="Nome"><input id="newPass" class="input" placeholder="Password"></div><button class="btn" style="width:100%;margin-top:10px" onclick="addCollab()">Aggiungi collaboratore</button></div>`;$('p-impost').innerHTML=`<div class="titleRow"><div><div class="h">Impostazioni Company</div><div class="small">Clienti Excel · Edoardo senza km</div></div></div>${vat}<div class="card"><div class="name">Tariffe km</div>${rates||'<div class="empty">Nessun collaboratore con km attivo</div>'}<div class="rvNoKmBox">Edoardo Ronda è escluso dal calcolo rimborsi km.</div></div>${list}${coll}${rvBackupBlock()}`};
 // Re-run migration once after this patch is loaded, so the local demo database is replaced before first render.
 migrate();
 })();
@@ -4246,4 +4252,399 @@ button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible
 /* v9.2 · bottone "+ Nuova" nel selettore prestazioni */
 .rvNewSvcBtn{white-space:nowrap;padding:8px 12px;font-size:14px}
 </style>
+
+<style id="rv-v93-collab-style">
+/* v9.3 · gestione collaboratori nelle Impostazioni Company */
+.rvCollabRow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:18px;padding:12px;margin:10px 0}
+.rvCollabRow .grow{min-width:150px}
+.rvCollabRow .delBtn{min-height:50px;padding:8px 14px}
+.rvCollabBase{display:flex;gap:10px;align-items:center;background:#fffdf8;border:1px dashed var(--line);border-radius:18px;padding:11px 12px;margin:8px 0}
+.rvCollabBase .avatar{width:42px;height:42px;border-radius:14px;font-size:16px}
+.rvCollabTitle{font-size:14px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:14px 0 4px}
+@media(max-width:760px){.rvCollabRow{align-items:stretch;flex-direction:column}.rvCollabRow .delBtn{width:100%}}
+</style>
+
+<script id="rv-v93-collab-manager">
+(function(){
+'use strict';
+/* ============================================================
+   RURAL VET v9.3 · GESTIONE COLLABORATORI (solo account Rural Vet)
+   - In Impostazioni Company: elenco collaboratori aggiunti con
+     nome/cognome e password visibili in chiaro
+   - Modifica di nome e password direttamente dai campi
+   - Eliminazione con conferma; l'eliminazione viene registrata
+     (tombstone) così il collaboratore non ricompare al merge cloud
+   - I profili base (hash password) sono elencati come sola lettura
+   ============================================================ */
+
+var esc=window.rvEsc||function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]})};
+var escA=window.rvEscAttr||esc;
+
+/* --- v9.4 · anche i profili base sono gestibili da Rural Vet ---
+   Password iniziali comunicate dal titolare:
+   Medardo 1996 · Edoardo 0000 · Giulia 0000
+   Le modifiche (nome, password, eliminazione) vengono salvate in
+   db.cfg.baseCollab e sincronizzate in cloud. */
+var RV_BASE_PW={medardo:'1996',edoardo:'0000',giulia:'0000'};
+function rvIsBaseWorker(id){return (typeof baseProfiles!=="undefined"?baseProfiles:[]).some(function(b){return String(b.id)===String(id)&&b.role==='worker'})}
+function rvBaseOv(){db.cfg=db.cfg||{};db.cfg.baseCollab=db.cfg.baseCollab||{};return db.cfg.baseCollab}
+
+if(typeof window.allProfiles==='function'){
+  var _allProf=window.allProfiles;
+  window.allProfiles=function(){
+    var list=_allProf()||[];
+    if(typeof db==="undefined"||!db||!db.cfg)return list;
+    var ov=db.cfg.baseCollab||{};
+    return list.map(function(p){
+      if(!rvIsBaseWorker(p.id))return p;
+      var o=ov[p.id]||{};
+      var q=Object.assign({},p);
+      if(o.name)q.name=o.name;
+      if(o.icon)q.icon=o.icon;
+      var pw=(o.pass!==undefined&&o.pass!==null&&String(o.pass)!=='')?String(o.pass):RV_BASE_PW[p.id];
+      if(pw!==undefined){q.pass=pw;delete q.passHash}
+      return q;
+    }).filter(function(p){
+      if(!rvIsBaseWorker(p.id))return true;
+      var o=ov[p.id];return !(o&&o.deleted);
+    });
+  };
+}
+
+/* --- tombstone per collaboratori eliminati --- */
+if(typeof window.rvEnsureDeleted==='function'){
+  var _ensureDel=window.rvEnsureDeleted;
+  window.rvEnsureDeleted=function(){var d=_ensureDel();d.collab=d.collab||{};return d};
+}
+
+if(typeof window.mergeCollaboratori==='function'){
+  var _mergeColl=window.mergeCollaboratori;
+  window.mergeCollaboratori=function(local,remote){
+    var out=_mergeColl(local,remote)||[];
+    var dead=(db&&db.deleted&&db.deleted.collab)||{};
+    return out.filter(function(c){return c&&c.id!==undefined&&!dead[String(c.id)]});
+  };
+}
+
+if(typeof window.mergeCloudRecord==='function'){
+  var _mergeCloud=window.mergeCloudRecord;
+  window.mergeCloudRecord=function(remote){
+    /* conservo e unisco le eliminazioni collaboratori locali+remote,
+       perché il merge originale ricostruisce db.deleted senza la chiave collab */
+    var localDead=(db&&db.deleted&&db.deleted.collab)||{};
+    var remoteDead=(remote&&remote.deleted&&remote.deleted.collab)||{};
+    var merged={};var k;
+    for(k in remoteDead)merged[k]=remoteDead[k];
+    for(k in localDead)merged[k]=localDead[k];
+    var localBC=(db&&db.cfg&&db.cfg.baseCollab)||{};
+    var remoteBC=(remote&&remote.cfg&&remote.cfg.baseCollab)||{};
+    _mergeCloud(remote);
+    if(typeof db==="undefined"||!db)return;
+    db.deleted=db.deleted||{};
+    db.deleted.collab=Object.assign({},merged,db.deleted.collab||{});
+    db.cfg=db.cfg||{};
+    db.cfg.collaboratori=(db.cfg.collaboratori||[]).filter(function(c){return c&&c.id!==undefined&&!db.deleted.collab[String(c.id)]});
+    /* merge per-profilo delle modifiche ai profili base: vince la più recente */
+    var bc={},seen={};
+    Object.keys(remoteBC).concat(Object.keys(localBC)).forEach(function(kk){seen[kk]=1});
+    Object.keys(seen).forEach(function(kk){
+      var a=localBC[kk],b=remoteBC[kk];
+      if(!a){bc[kk]=b;return}
+      if(!b){bc[kk]=a;return}
+      var ta=Math.max(Number(a.updatedAt)||0,Number(a.deleted)||0);
+      var tb=Math.max(Number(b.updatedAt)||0,Number(b.deleted)||0);
+      bc[kk]=(ta>=tb)?a:b;
+    });
+    db.cfg.baseCollab=bc;
+  };
+}
+
+/* --- il nome dei collaboratori eliminati resta leggibile nello storico --- */
+if(typeof window.userName==='function'){
+  var _userName=window.userName;
+  window.userName=function(id){
+    var n=_userName(id);
+    if(n===id&&db&&db.cfg&&db.cfg.exCollab&&db.cfg.exCollab[id])return db.cfg.exCollab[id];
+    return n;
+  };
+}
+
+/* --- modifica nome/password collaboratore --- */
+window.updateCollab=function(id,field,val){
+  if(typeof current==="undefined"||!current||current.role!=='company')return;
+  val=String(val==null?'':val).trim();
+  if(!val){
+    alert(field==='name'?'Il nome non può essere vuoto.':'La password non può essere vuota.');
+    if(typeof rImpost==='function')rImpost();
+    return;
+  }
+  if(rvIsBaseWorker(id)){
+    /* profilo base: la modifica vive in db.cfg.baseCollab */
+    var ov=rvBaseOv();ov[id]=ov[id]||{};
+    if(field==='name'){ov[id].name=val;ov[id].icon=(typeof initials==='function'?initials(val):val.slice(0,2).toUpperCase())}
+    else if(field==='pass'){ov[id].pass=val}
+    ov[id].updatedAt=Date.now();
+    if(typeof saveCloud==='function')saveCloud();
+    if(typeof setupUser==="function"&&current)setupUser();
+    if(typeof rImpost==='function')rImpost();
+    return;
+  }
+  var c=((db.cfg&&db.cfg.collaboratori)||[]).find(function(x){return String(x.id)===String(id)});
+  if(!c)return;
+  if(field==='name'){c.name=val;c.icon=(typeof initials==='function'?initials(val):val.slice(0,2).toUpperCase())}
+  else if(field==='pass'){c.pass=val;delete c.passHash}
+  c.updatedAt=Date.now();
+  if(typeof saveCloud==='function')saveCloud();
+  if(typeof setupUser==="function"&&current)setupUser();
+  if(typeof rImpost==='function')rImpost();
+};
+
+/* --- eliminazione collaboratore --- */
+window.delCollab=function(id){
+  if(typeof current==="undefined"||!current||current.role!=='company')return;
+  if(rvIsBaseWorker(id)){
+    var prof=(typeof allProfiles==='function'?allProfiles():[]).find(function(p){return String(p.id)===String(id)});
+    var nm=prof?prof.name:id;
+    if(!confirm('Eliminare il collaboratore "'+nm+'"?\n\nNon potrà più accedere all\u2019app. Gli interventi già registrati restano nello storico con il suo nome.'))return;
+    var ov=rvBaseOv();ov[id]=ov[id]||{};
+    ov[id].deleted=Date.now();
+    db.cfg.exCollab=db.cfg.exCollab||{};
+    db.cfg.exCollab[String(id)]=nm;
+    if(db.cfg.kmRates)delete db.cfg.kmRates[id];
+    if(typeof saveCloud==='function')saveCloud();
+    if(typeof setupUser==="function"&&current)setupUser();
+    if(typeof rImpost==='function')rImpost();
+    return;
+  }
+  var c=((db.cfg&&db.cfg.collaboratori)||[]).find(function(x){return String(x.id)===String(id)});
+  if(!c)return;
+  if(!confirm('Eliminare il collaboratore "'+c.name+'"?\n\nNon potrà più accedere all\u2019app. Gli interventi già registrati restano nello storico con il suo nome.'))return;
+  db.cfg.exCollab=db.cfg.exCollab||{};
+  db.cfg.exCollab[String(id)]=c.name;
+  db.cfg.collaboratori=db.cfg.collaboratori.filter(function(x){return String(x.id)!==String(id)});
+  var dels=(typeof rvEnsureDeleted==='function')?rvEnsureDeleted():(db.deleted=db.deleted||{});
+  dels.collab=dels.collab||{};
+  dels.collab[String(id)]=Date.now();
+  if(db.cfg.kmRates)delete db.cfg.kmRates[id];
+  if(typeof saveCloud==='function')saveCloud();
+  if(typeof setupUser==="function"&&current)setupUser();
+  if(typeof rImpost==='function')rImpost();
+};
+
+/* --- blocco HTML elenco collaboratori --- */
+function rvCollabRow(p,badge){
+  var id=escA(String(p.id));
+  return '<div class="rvCollabRow">'
+    +'<div class="grow"><div class="label">Nome e cognome'+(badge?' · <span style="color:var(--g2)">'+badge+'</span>':'')+'</div><input class="input" value="'+escA(p.name||'')+'" onchange="updateCollab(\''+id+'\',\'name\',this.value)"></div>'
+    +'<div class="grow"><div class="label">Password</div><input class="input" value="'+escA(p.pass||'')+'" onchange="updateCollab(\''+id+'\',\'pass\',this.value)"></div>'
+    +'<button class="delBtn" onclick="delCollab(\''+id+'\')">Elimina</button>'
+    +'</div>';
+}
+function rvCollabListHTML(){
+  var all=(typeof allProfiles==='function'?allProfiles():[])||[];
+  var base=all.filter(function(p){return rvIsBaseWorker(p.id)});
+  var added=(db.cfg&&db.cfg.collaboratori)||[];
+  var html='';
+  html+='<div class="rvCollabTitle">Profili base</div>';
+  html+=base.length?base.map(function(p){return rvCollabRow(p,'profilo base')}).join(''):'<div class="rvEmptySmall">Tutti i profili base sono stati eliminati.</div>';
+  html+='<div class="rvCollabTitle">Collaboratori aggiunti</div>';
+  if(!added.length){
+    html+='<div class="rvEmptySmall">Nessun collaboratore aggiunto. Usa i campi qui sotto per crearne uno.</div>';
+  }else{
+    html+=added.map(function(c){return rvCollabRow(c,'')}).join('');
+  }
+  html+='<div class="rvCollabTitle">Aggiungi nuovo</div>';
+  return html;
+}
+
+/* --- inietto l'elenco nella card "Collaboratori" delle Impostazioni Company --- */
+if(typeof window.rCompanySettings==='function'){
+  var _origCS=window.rCompanySettings;
+  window.rCompanySettings=function(){
+    _origCS();
+    try{
+      var host=document.getElementById('p-impost');if(!host)return;
+      var cards=host.querySelectorAll('.card');var target=null;
+      for(var i=0;i<cards.length;i++){
+        var n=cards[i].querySelector('.name');
+        if(n&&n.textContent.trim()==='Collaboratori'){target=cards[i];break}
+      }
+      if(!target)return;
+      var nameEl=target.querySelector('.name');
+      nameEl.insertAdjacentHTML('afterend','<div class="small">Da qui Rural Vet vede nome, cognome e password di tutti i collaboratori (profili base inclusi) e può modificarli o eliminarli. Le modifiche si sincronizzano nel cloud e valgono anche per il login.</div>'+rvCollabListHTML());
+    }catch(e){console.error('RuralVet collab manager render error',e)}
+  };
+  /* se la pagina Impostazioni è già aperta, la ridisegno */
+  if(typeof current!=="undefined"&&current&&current.role==="company"&&typeof tab!=="undefined"&&tab==="impost"){try{rImpost()}catch(e){}}
+}
+})();
+</script>
+
+<script id="rv-v95-cloud-login">
+(function(){
+'use strict';
+/* ============================================================
+   RURAL VET v9.5 · LOGIN CLOUD-FIRST
+   - Prima di validare la password, l'app scarica l'ultima
+     versione del database da JSONbin: le password modificate
+     da Rural Vet valgono SUBITO su tutti i dispositivi.
+   - È la password gestita in cloud a decidere l'accesso.
+   - Il backend viene comunque contattato per il token AI: se
+     il backend non è allineato o non risponde, si entra lo
+     stesso (AI in modalità base). Se invece il backend viene
+     aggiornato con la rotta di login cloud (file allegato),
+     anche l'AI segue automaticamente le password del cloud.
+   ============================================================ */
+
+async function rvRefreshCloudCfg(){
+  try{
+    if(typeof SYNC==='undefined'||!SYNC||!SYNC.binId||!SYNC.apiKey)return false;
+    var ctrl=typeof AbortController!=='undefined'?new AbortController():null;
+    var tm=ctrl?setTimeout(function(){ctrl.abort()},5000):null;
+    var r=await fetch('https://api.jsonbin.io/v3/b/'+SYNC.binId+'/latest',{headers:{'X-Master-Key':SYNC.apiKey},signal:ctrl?ctrl.signal:undefined});
+    if(tm)clearTimeout(tm);
+    if(!r.ok)return false;
+    var j=await r.json();
+    if(j&&j.record&&typeof mergeCloudRecord==='function')mergeCloudRecord(j.record);
+    return true;
+  }catch(e){return false}
+}
+window.rvRefreshCloudCfg=rvRefreshCloudCfg;
+
+if(typeof window.doLogin==='function'&&typeof window.rvBackendLogin==='function'){
+  window.doLogin=async function(){
+    if(!loginTarget)return;
+    var pwd=$('pwd').value;
+    $('err').textContent='Verifica dal cloud\u2026';
+
+    /* 1) aggiorno la configurazione (password, nomi, eliminazioni) dal cloud */
+    await rvRefreshCloudCfg();
+    var fresh=(typeof allProfiles==='function'?allProfiles():[]).find(function(p){return String(p.id)===String(loginTarget.id)});
+    if(!fresh){
+      $('err').textContent='';
+      alert('Questo profilo è stato eliminato da Rural Vet.');
+      cancelLogin();renderProfiles();
+      return;
+    }
+    loginTarget=fresh;
+    var who=$('pwdWho');if(who)who.textContent=loginTarget.name;
+
+    /* 2) validazione con la password gestita in cloud */
+    var okCloud=false;
+    if(loginTarget.passHash){
+      var h=await rvSha256(pwd);
+      okCloud=(!!h&&h===loginTarget.passHash);
+    }else{
+      okCloud=(pwd===String(loginTarget.pass==null?'':loginTarget.pass));
+    }
+
+    /* 3) backend: serve per il token AI, non blocca l'accesso se il cloud è ok */
+    $('err').textContent='Accesso in corso\u2026';
+    var auth=await rvBackendLogin(loginTarget.id,pwd);
+
+    if(!okCloud&&!auth.ok){
+      window.rvAuth=null;try{localStorage.removeItem('rv_auth')}catch(e){}
+      $('err').textContent=(auth.status===429)?'Troppi tentativi: riprova tra qualche minuto':'Password errata';
+      return;
+    }
+    if(!auth.ok){
+      window.rvAuth=null;try{localStorage.removeItem('rv_auth')}catch(e){}
+    }
+
+    current=loginTarget;
+    $('err').textContent='';
+    $('login').style.display='none';$('app').style.display='flex';
+    loadCloud(function(){
+      setupUser();
+      go(current.role==='company'?'dashboard':'oggi');
+      if(!auth.ok&&typeof setSaveState==='function'){
+        setSaveState(auth.offline?'Backend non raggiungibile · AI in modalità base':'\u26a0 Password backend non allineata · AI in modalità base','var(--amb)');
+      }
+    });
+  };
+}
+})();
+</script>
+
+<script id="rv-v96-auto-cloud">
+(function(){
+'use strict';
+/* ============================================================
+   RURAL VET v9.6 · CONNESSIONE JSONBIN SEMPRE AUTOMATICA
+   - Nessuna configurazione richiesta: le credenziali JSONbin
+     incorporate vengono ripristinate se l'override locale è
+     vuoto o corrotto (niente più "Cloud non configurato").
+   - All'avvio l'app scarica subito i dati dal cloud: anche la
+     schermata di login mostra collaboratori, nomi e password
+     aggiornati da qualsiasi dispositivo.
+   - Auto-sync: ogni 4 minuti e ogni volta che l'app torna in
+     primo piano, i dati vengono riallineati con JSONbin (senza
+     disturbare: mai durante un salvataggio, con una finestra
+     aperta o mentre si sta scrivendo in un campo).
+   Il backend NON viene toccato: serve solo per l'AI.
+   ============================================================ */
+
+var RV_SYNC_DEFAULTS={binId:'69f1d3de856a68218987163d',apiKey:'$2a$10$DOPytrLfjqz1znLxBKNe5edSn/FH5RnMLBlFT/ciSDTqqShKLdnja'};
+
+/* a) credenziali sempre valide: se l'override locale le ha svuotate,
+      torno ai default incorporati (e sistemo anche l'override salvato) */
+function rvFixSync(){
+  try{
+    if(typeof SYNC==='undefined'||!SYNC)return;
+    var fixed=false;
+    if(!String(SYNC.binId||'').trim()){SYNC.binId=RV_SYNC_DEFAULTS.binId;fixed=true}
+    if(!String(SYNC.apiKey||'').trim()){SYNC.apiKey=RV_SYNC_DEFAULTS.apiKey;fixed=true}
+    if(fixed){try{localStorage.setItem('rv_sync_override',JSON.stringify({binId:SYNC.binId,apiKey:SYNC.apiKey}))}catch(e){}}
+  }catch(e){}
+}
+rvFixSync();
+
+/* b) + c) sincronizzazione automatica */
+var rvAutoBusy=false;
+async function rvAutoSync(){
+  if(rvAutoBusy)return;
+  if(typeof RV_SAVE!=='undefined'&&RV_SAVE&&RV_SAVE.saving)return; /* mai durante un salvataggio */
+  if(typeof rvRefreshCloudCfg!=='function')return;
+  rvAutoBusy=true;
+  try{
+    rvFixSync();
+    var ok=await rvRefreshCloudCfg(); /* scarica l'ultima versione e la unisce (merge sicuro con tombstone) */
+    if(!ok)return;
+    if(typeof current!=='undefined'&&current){
+      /* utente loggato: aggiorno la pagina corrente solo se non disturbo */
+      var modal=document.getElementById('modal');
+      var modalOpen=false;
+      try{modalOpen=!!(modal&&getComputedStyle(modal).display!=='none')}catch(e){}
+      var ae=document.activeElement;
+      var typing=!!(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'));
+      if(!modalOpen&&!typing&&typeof go==='function'&&typeof tab!=='undefined'&&tab){
+        try{go(tab)}catch(e){}
+      }
+      if(typeof setSaveState==='function'){
+        var tm=new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+        setSaveState('\u2713 Cloud sincronizzato '+tm,'var(--g2)');
+      }
+    }else{
+      /* schermata di login: aggiorno l'elenco profili con i dati cloud */
+      if(typeof renderProfiles==='function'){
+        var pwdBox=document.getElementById('pwdBox');
+        var typingPwd=pwdBox&&!pwdBox.classList.contains('hidden');
+        if(!typingPwd){try{renderProfiles()}catch(e){}}
+      }
+    }
+  }finally{rvAutoBusy=false}
+}
+window.rvAutoSync=rvAutoSync;
+
+function rvStartAutoCloud(){
+  rvAutoSync(); /* subito all'avvio: il login mostra sempre i profili aggiornati */
+  setInterval(rvAutoSync,240000); /* ogni 4 minuti */
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')rvAutoSync()});
+  window.addEventListener('focus',function(){rvAutoSync()});
+  window.addEventListener('online',function(){rvAutoSync()});
+}
+if(document.readyState==='complete'||document.readyState==='interactive')rvStartAutoCloud();
+else document.addEventListener('DOMContentLoaded',rvStartAutoCloud);
+})();
+</script>
 </body></html>
