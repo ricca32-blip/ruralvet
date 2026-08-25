@@ -422,6 +422,10 @@ window.migrate=function migrate(){
   if(typeof window.__rvTombDead==='function'&&db.deleted){
     db.int=(db.int||[]).filter(i=>!window.__rvTombDead(i,db.deleted.int));
     db.fatture=(db.fatture||[]).filter(f=>!window.__rvTombDead(f,db.deleted.fatture));
+    /* v9.1.3 · anche le aziende (e prestazioni) eliminate non devono risorgere
+       da copie cloud/locali vecchie: stesso meccanismo di int e fatture. */
+    db.aziende=(db.aziende||[]).filter(a=>!window.__rvTombDead(a,db.deleted.aziende));
+    db.prest=(db.prest||[]).filter(p=>!window.__rvTombDead(p,db.deleted.prest));
   }
 };
 const RV2026_ORIG_MERGE = (typeof mergeCloudRecord==='function') ? mergeCloudRecord : null;
@@ -3161,11 +3165,21 @@ body *,button,input,select,textarea,option,.label,.catTitle,.table th,.stat .l{t
   window.rAziende = function rAziende(){
     if(current.role!=='company') return go('oggi');
     let arr=rvCompanyRows();
+    /* v9.1.3 · FIX ricerca "una lettera alla volta": il re-render con innerHTML
+       distruggeva l'input e faceva perdere il focus a ogni tasto. Ricordo se
+       l'utente stava scrivendo nella ricerca e ripristino focus + cursore. */
+    let ae=document.activeElement;
+    let wasSearching=!!(ae&&ae.id==='azSearchInput');
+    let caret=wasSearching?(ae.selectionStart!=null?ae.selectionStart:String(window.azSearch||'').length):0;
     $('p-aziende').innerHTML =
       `<div class="titleRow"><div><div class="h">Aziende</div></div><button class="btn" onclick="openAzienda()">+ Azienda</button></div>`+
       `<div class="stats" style="grid-template-columns:1fr"><div class="stat"><div class="v">${db.aziende.length}</div><div class="l">Clienti</div></div></div>`+
-      `<div class="rvListTools"><input class="input" placeholder="Cerca nome, ragione sociale, comune, P.IVA, CF, SDI..." value="${esc(window.azSearch||'')}" oninput="window.azSearch=this.value;rAziende()"><span class="rvBadge gray">${arr.length} risultati</span></div>`+
+      `<div class="rvListTools"><input id="azSearchInput" class="input" placeholder="Cerca nome, ragione sociale, comune, P.IVA, CF, SDI..." value="${esc(window.azSearch||'')}" oninput="window.azSearch=this.value;rAziende()"><span class="rvBadge gray">${arr.length} risultati</span></div>`+
       (arr.map(a=>`<div class="card rvCompanyCard"><div class="cardHead"><div class="grow"><div class="name">${esc(a.nome)}</div><div class="meta"><b>${esc(billName(a))}</b><br>${esc(fullAddr(a)||'Indirizzo da completare')}</div><div class="rvMetaGrid">${a.piva?`<span class="rvBadge gray">P.IVA ${esc(a.piva)}</span>`:''}${a.cf?`<span class="rvBadge gray">CF ${esc(a.cf)}</span>`:''}${a.sdi?`<span class="rvBadge gray">SDI ${esc(a.sdi)}</span>`:''}</div></div><button class="btn secondary" onclick="openAzienda(${a.id})">Modifica</button></div></div>`).join('') || '<div class="empty">Nessuna azienda trovata</div>');
+    if(wasSearching){
+      let s=document.getElementById('azSearchInput');
+      if(s){s.focus();try{s.setSelectionRange(caret,caret)}catch(e){}}
+    }
   };
 
   window.openAzienda = function openAzienda(id){
@@ -4672,6 +4686,12 @@ else document.addEventListener('DOMContentLoaded',rvStartAutoCloud);
       if(linked.length){
         if(!confirm('Attenzione: ci sono '+linked.length+' interventi registrati per questa azienda.\nGli interventi NON verranno cancellati ma resteranno senza azienda collegata.\n\nConfermi comunque l\u2019eliminazione?')) return;
       }
+      /* v9.1.3 · FIX azienda che ricompare: senza tombstone la sincronizzazione
+         cloud (mergeCloudRecord/mergeArr) ri-aggiungeva l'azienda appena
+         eliminata prendendola dalla copia remota. Registro l'eliminazione. */
+      if(typeof rvEnsureDeleted==='function'){rvEnsureDeleted()}
+      else{db.deleted=db.deleted||{int:{},fatture:{},aziende:{},prest:{}};db.deleted.aziende=db.deleted.aziende||{}}
+      db.deleted.aziende[String(id)] = Date.now();
       db.aziende = (db.aziende||[]).filter(function(a){return Number(a.id)!==id});
       if(typeof activeListino!=='undefined' && Number(activeListino)===id) activeListino=0;
       if(typeof saveCloud==='function') saveCloud();
